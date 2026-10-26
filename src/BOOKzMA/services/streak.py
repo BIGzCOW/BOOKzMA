@@ -15,6 +15,36 @@ def compute_streak(
     return count
 
 
+def current_run_start(
+    days: Iterable[date], today: date, freeze_days: Iterable[date] = ()
+) -> date | None:
+    """روز شروع زنجیرهٔ پیوستهٔ جاری؛ None یعنی استریک فعلی صفر است."""
+    day_set = set(days) | set(freeze_days)
+    cursor = today if today in day_set else today - timedelta(days=1)
+    if cursor not in day_set:
+        return None
+    start = cursor
+    while start - timedelta(days=1) in day_set:
+        start -= timedelta(days=1)
+    return start
+
+
+def displayed_streak(
+    days: Iterable[date],
+    today: date,
+    freeze_days: Iterable[date] = (),
+    bonus_days: int = 0,
+    bonus_base_day: date | None = None,
+) -> int:
+    """استریک واقعی + پاداش comeback، فقط تا وقتی زنجیرهٔ همان دوره نشکسته."""
+    raw = compute_streak(days, today, freeze_days)
+    if not bonus_days or not bonus_base_day:
+        return raw
+    if current_run_start(days, today, freeze_days) == bonus_base_day:
+        return raw + bonus_days
+    return raw
+
+
 def longest_streak(days: Iterable[date], freeze_days: Iterable[date] = ()) -> int:
     best = run = 0
     prev: date | None = None

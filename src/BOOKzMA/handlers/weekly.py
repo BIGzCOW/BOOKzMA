@@ -6,7 +6,7 @@ from BOOKzMA import keyboards, texts
 from BOOKzMA.handlers.common import show
 from BOOKzMA.repositories import readings, users
 from BOOKzMA.repositories import streak_freezes
-from BOOKzMA.services.streak import compute_streak, longest_streak, weekly_summary
+from BOOKzMA.services.streak import displayed_streak, longest_streak, weekly_summary
 from BOOKzMA.utils import local_today
 
 router = Router()
@@ -26,7 +26,9 @@ async def on_weekly_summary(callback: CallbackQuery, session: AsyncSession) -> N
         callback,
         texts.weekly_summary(
             summary["days_read"],
-            compute_streak(days, today, frozen_days),
+            displayed_streak(
+                days, today, frozen_days, user.comeback_bonus_days, user.comeback_base_day
+            ),
             longest_streak(days, frozen_days),
             await streak_freezes.balance(session, user.id),
         ),

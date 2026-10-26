@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -106,19 +106,39 @@ async def mark_started(session: AsyncSession, user_id: int) -> bool:
     return result.first() is not None
 
 
+async def mark_onboarded(session: AsyncSession, user_id: int) -> bool:
+    """True فقط بار اول؛ فلوی آنبردینگ ایدمپوتنت تمام می‌شود."""
+    result = await session.execute(
+        update(User)
+        .where(User.id == user_id, User.onboarded_at.is_(None))
+        .values(onboarded_at=datetime.now(timezone.utc))
+        .returning(User.id)
+    )
+    return result.first() is not None
+
+
 async def leaderboard_rows(
     session: AsyncSession,
-) -> list[tuple[int, str | None, str, list, list]]:
+) -> list[tuple[int, str | None, str, int, date | None, list, list]]:
     result = await session.execute(
-        select(User.id, User.display_name, User.timezone, ReadingLog.day)
+        select(
+            User.id,
+            User.display_name,
+            User.timezone,
+            User.comeback_bonus_days,
+            User.comeback_base_day,
+            ReadingLog.day,
+        )
         .join(ReadingLog, ReadingLog.user_id == User.id)
         .where(User.leaderboard_opt_out.is_(False))
         .order_by(User.id, ReadingLog.day)
     )
     rows = result.all()
-    user_days: dict[int, tuple[str | None, str, list, list]] = {}
-    for user_id, username, timezone_name, day in rows:
-        user_days.setdefault(user_id, (username, timezone_name, [], []))[2].append(day)
+    user_days: dict[int, tuple[str | None, str, int, date | None, list, list]] = {}
+    for user_id, username, timezone_name, bonus_days, bonus_base, day in rows:
+        user_days.setdefault(
+            user_id, (username, timezone_name, bonus_days, bonus_base, [], [])
+        )[4].append(day)
     user_ids = list(user_days)
     if not user_ids:
         return []
@@ -128,8 +148,15 @@ async def leaderboard_rows(
         )
     )
     for user_id, day in freeze_result:
-        user_days[user_id][3].append(day)
+        user_days[user_id][5].append(day)
     return [
-        (user_id, display_name, timezone_name, days, frozen)
-        for user_id, (display_name, timezone_name, days, frozen) in user_days.items()
+        (user_id, display_name, timezone_name, bonus_days, bonus_base, days, frozen)
+        for user_id, (
+            display_name,
+            timezone_name,
+            bonus_days,
+            bonus_base,
+            days,
+            frozen,
+        ) in user_days.items()
     ]

@@ -16,7 +16,7 @@ from BOOKzMA import keyboards, texts
 from BOOKzMA.repositories import readings
 from BOOKzMA.repositories import streak_freezes
 from BOOKzMA.repositories import reminders as reminders_repo
-from BOOKzMA.services.streak import compute_streak
+from BOOKzMA.services.streak import displayed_streak
 from BOOKzMA.utils import local_now
 
 log = logging.getLogger(__name__)
@@ -72,7 +72,11 @@ async def send_due(bot: Bot, session_pool: async_sessionmaker[AsyncSession]) -> 
 
             days = await readings.get_days(session, user.id)
             frozen_days = await streak_freezes.used_days(session, user.id)
-            text = texts.reminder_push(compute_streak(days, today, frozen_days))
+            text = texts.reminder_push(
+                displayed_streak(
+                    days, today, frozen_days, user.comeback_bonus_days, user.comeback_base_day
+                )
+            )
             reminder.attempt_count += 1
             await session.commit()
             try:

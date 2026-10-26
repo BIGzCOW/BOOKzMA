@@ -17,6 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+from aiogram.client.session.base import BaseSession
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from BOOKzMA.bot import start_bot
@@ -205,7 +206,9 @@ async def _lifespan(app: FastAPI):
     tasks = []
     try:
         if app.state.run_bot:
-            bot, tasks = await start_bot(settings, session_pool)
+            bot, tasks = await start_bot(
+                settings, session_pool, bot_session=app.state.bot_session
+            )
         yield
     finally:
         for task in tasks:
@@ -221,11 +224,13 @@ def create_app(
     settings: Settings | None = None,
     run_bot: bool = True,
     run_migrations: bool = True,
+    bot_session: BaseSession | None = None,
 ) -> FastAPI:
     app = FastAPI(title="BOOKzMA API", version="1.1.0", lifespan=_lifespan)
     app.state.settings = settings or Settings()
     app.state.run_bot = run_bot
     app.state.run_migrations = run_migrations
+    app.state.bot_session = bot_session
     origins = [
         origin.strip()
         for origin in app.state.settings.web_origins.split(",")

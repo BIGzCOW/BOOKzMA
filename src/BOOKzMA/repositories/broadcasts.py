@@ -4,23 +4,63 @@ from datetime import datetime, timezone
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from BOOKzMA.db.models import BroadcastCampaign, BroadcastDelivery, User
+from BOOKzMA.db.models import BroadcastCampaign, BroadcastDelivery, MiswakProfile, User
 
 _START_LOCK = asyncio.Lock()
 
 
-async def create(session: AsyncSession, admin_id: int, text: str) -> tuple[int, int]:
-    campaign = BroadcastCampaign(admin_id=admin_id, text=text, status="pending")
+async def create(
+    session: AsyncSession,
+    admin_id: int,
+    text: str,
+    audience: str = "all",
+    media_type: str | None = None,
+    media_file_id: str | None = None,
+    button_label: str | None = None,
+    button_url: str | None = None,
+) -> tuple[int, int]:
+    if audience not in {"all", "miswak"}:
+        raise ValueError("unsupported broadcast audience")
+    if media_type not in {None, "photo", "video"}:
+        raise ValueError("unsupported broadcast media type")
+    if media_type is not None and not media_file_id:
+        raise ValueError("media file id is required for media campaigns")
+    campaign = BroadcastCampaign(
+        admin_id=admin_id,
+        text=text,
+        audience=audience,
+        media_type=media_type,
+        media_file_id=media_file_id,
+        button_label=button_label,
+        button_url=button_url,
+        status="pending",
+    )
     session.add(campaign)
     await session.flush()
-    result = await session.scalars(
-        select(User.id).where(User.broadcast_unavailable.is_(False)).order_by(User.id)
-    )
+    statement = select(User.id).where(User.broadcast_unavailable.is_(False))
+    if audience == "miswak":
+        statement = statement.join(MiswakProfile, MiswakProfile.user_id == User.id).where(
+            MiswakProfile.enabled.is_(True)
+        )
+    result = await session.scalars(statement.order_by(User.id))
     user_ids = list(result)
     session.add_all(
         BroadcastDelivery(campaign_id=campaign.id, user_id=user_id) for user_id in user_ids
     )
     return campaign.id, len(user_ids)
+
+
+async def eligible_recipient(
+    session: AsyncSession, campaign: BroadcastCampaign, user_id: int
+) -> bool:
+    statement = select(User.id).where(
+        User.id == user_id, User.broadcast_unavailable.is_(False)
+    )
+    if campaign.audience == "miswak":
+        statement = statement.join(MiswakProfile, MiswakProfile.user_id == User.id).where(
+            MiswakProfile.enabled.is_(True)
+        )
+    return await session.scalar(statement) is not None
 
 
 async def start(session: AsyncSession, campaign_id: int, admin_id: int) -> bool:

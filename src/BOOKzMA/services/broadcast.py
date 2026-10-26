@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.exceptions import (
     TelegramAPIError,
     TelegramForbiddenError,
@@ -45,12 +46,47 @@ async def send_one(bot: Bot, session_pool: async_sessionmaker[AsyncSession]) -> 
             await session.commit()
             return False
         campaign, delivery = item
+        if not await broadcasts.eligible_recipient(session, campaign, delivery.user_id):
+            await broadcasts.set_delivery_state(
+                session, delivery.id, "cancelled", "audience_inactive"
+            )
+            await session.commit()
+            return True
         await broadcasts.set_delivery_state(session, delivery.id, "sending")
         delivery.attempts += 1
         await session.commit()
 
+    reply_markup = None
+    if campaign.button_label and campaign.button_url:
+        reply_markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=campaign.button_label, url=campaign.button_url)]
+            ]
+        )
     try:
-        await bot.send_message(delivery.user_id, campaign.text, parse_mode=None)
+        if campaign.media_type == "photo":
+            await bot.send_photo(
+                delivery.user_id,
+                campaign.media_file_id,
+                caption=campaign.text or None,
+                reply_markup=reply_markup,
+                parse_mode=None,
+            )
+        elif campaign.media_type == "video":
+            await bot.send_video(
+                delivery.user_id,
+                campaign.media_file_id,
+                caption=campaign.text or None,
+                reply_markup=reply_markup,
+                parse_mode=None,
+            )
+        else:
+            await bot.send_message(
+                delivery.user_id,
+                campaign.text,
+                reply_markup=reply_markup,
+                parse_mode=None,
+            )
     except TelegramRetryAfter as error:
         async with session_pool() as session:
             state = "pending" if delivery.attempts < MAX_ATTEMPTS else "failed"

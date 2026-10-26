@@ -1,4 +1,6 @@
 from BOOKzMA.constants import MAX_REMINDERS, MILESTONES
+from BOOKzMA.services.backup import BackupInfo
+from BOOKzMA.services.badges import badge_label
 from BOOKzMA.utils import fa
 
 MAX_STREAK_FREEZES = 2
@@ -45,9 +47,199 @@ ACCOUNT_DELETE_CANCELLED = "باشه، حذف لغو شد. خوشحالیم که
 ACCOUNT_DELETED_NOTICE = "برای شروع، دکمهٔ زیر رو بزن 👋"
 ACCOUNT_RESTORED = "شروع شد! 📚"
 INVALID_ACTION = "این دکمه دیگه معتبر نیست. دوباره امتحان کن 🙏"
+RATE_LIMITED = "آروم‌تر 🙂 چند لحظه صبر کن و بعد دوباره امتحان کن."
+
+BACKUP_NONE = "هنوز هیچ بکاپی ثبت نشده. با دکمهٔ «بکاپ جدید» یکی بگیر."
+BACKUP_MENU_TITLE = "💾 <b>بکاپ دیتابیس</b>\n"
+RESTORE_WORD = "بازیابی"
 
 
-def home(streak: int, best: int, strip: str, read_today: bool, freeze_balance: int) -> str:
+def _fa_size(size_bytes: int) -> str:
+    if size_bytes >= 1024 * 1024:
+        return f"{fa(round(size_bytes / 1024 / 1024))} مگابایت"
+    return f"{fa(max(1, round(size_bytes / 1024)))} کیلوبایت"
+
+
+def backup_status(backups: list[BackupInfo]) -> str:
+    if not backups:
+        return BACKUP_MENU_TITLE + "\n" + BACKUP_NONE
+    newest = backups[0]
+    lines = [
+        BACKUP_MENU_TITLE,
+        f"آخرین بکاپ: <code>{newest.name}</code>",
+        f"حجم: {_fa_size(newest.size_bytes)}",
+        f"تعداد بکاپ‌های محلی: {fa(len(backups))}",
+    ]
+    return "\n".join(lines)
+
+
+def backup_list(backups: list[BackupInfo]) -> str:
+    lines = [BACKUP_MENU_TITLE, "بکاپ‌های موجود:", ""]
+    for info in backups:
+        lines.append(f"• <code>{info.name}</code> ({_fa_size(info.size_bytes)})")
+    lines.append("")
+    lines.append("برای بازگردانی، یکی رو انتخاب کن.")
+    return "\n".join(lines)
+
+
+def restore_warn(name: str) -> str:
+    return (
+        f"♻️ <b>بازگردانی از بکاپ</b>\n\n"
+        f"فایل: <code>{name}</code>\n\n"
+        "⚠️ با این کار <b>همهٔ داده‌های فعلی</b> (استریک‌ها، مطالعه‌ها، یادآورها و حساب‌های جدید) "
+        "با محتوای همین بکاپ جایگزین می‌شن و برنمی‌گردن.\n\n"
+        "اگه مطمئنی، اول با «بکاپ جدید» از وضعیت الان نسخه بگیر، بعد ادامه بده."
+    )
+
+
+RESTORE_CONFIRM = (
+    "برای تأیید بازگردانی، کلمهٔ <code>بازیابی</code> رو بنویس و بفرست.\n"
+    "با دکمهٔ پایین می‌تونی منصرف شی."
+)
+RESTORE_BAD_WORD = (
+    "کلمهٔ تأیید درست نبود. فقط کافیه <code>بازیابی</code> رو بنویسی، یا منصرف شی."
+)
+RESTORE_RUNNING = "⏳ در حال بازگردانی… ممکنه چند ثانیه طول بکشه."
+RESTORE_DONE = (
+    "✅ بازگردانی انجام شد.\n\n"
+    "برای اعمال کامل، روی سرور <code>docker compose restart bot</code> رو اجرا کن."
+)
+BACKUP_RUNNING = "⏳ در حال گرفتن بکاپ…"
+BACKUP_FAILED = "❌ گرفتن بکاپ ناموفق بود. جزئیات در لاگ سرور."
+RESTORE_FAILED = "❌ بازگردانی ناموفق بود. جزئیات در لاگ سرور."
+
+
+def backup_done(name: str, size_bytes: int) -> str:
+    return f"✅ بکاپ گرفته شد: <code>{name}</code>\nحجم: {_fa_size(size_bytes)}"
+
+
+def admin_backup_hint() -> str:
+    return "بکاپ روزانهٔ خودکار ساعت ۳:۳۰ با cron سرور انجام می‌شه؛ این بخش برای کار دستیه."
+
+ONBOARDING_WELCOME = (
+    "سلام! 👋 خوش اومدی\n\n"
+    "اینجا جاییه که عادت کتاب‌خوندن رو باهم می‌سازیم: هر روز که بخونی ثبتش می‌کنیم، "
+    "استریک‌ت بالا می‌ره و یادآور هم یادت نمی‌ذاره.\n\n"
+    "برای شروع، اولین یادآور روزانه‌ات رو انتخاب کن؛ اگر هم فقط بخش مسباک رو می‌خوای، "
+    "گزینهٔ پایین رو بزن:"
+)
+ONBOARDING_DONE = "یادآورت فعاله ⏰ حالا هر روز سر وقت بهت یادآوری می‌کنم."
+ONBOARDING_SKIPPED = "باشه! هر وقت خواستی از منوی «⏰ یادآورها» بذار 🙂"
+WELCOME_BACK = (
+    "چه خوب که برگشتی! 👋\n"
+    "هر چقدر هم غیبت شد، مهم نیست؛ از همین امروز دوباره شروع کنیم."
+)
+COMEBACK_BROKEN = (
+    "😌 استریک {days} روزه‌ات تموم شد؛ اتفاق می‌افده. ولی از دست نرفته:\n"
+    "۳ روز پشت‌سرهم بخون تا نصفش پس بگیری 💪"
+)
+COMEBACK_PROGRESS = "🔁 روز {done} از ۳ برای پس‌گرفتن استریک. ادامه بده!"
+COMEBACK_RESTORED = (
+    "🎉 آفرین! {added} روز به استریکت برگشت؛ الان {total} روزه‌ای."
+)
+RISK_ALERT = (
+    "⚠️ <b>استریکت در خطره!</b>\n"
+    "امروز هنوز نخوندی. همین یه مطالعهٔ کوچیک هم روزت رو نجات می‌ده."
+)
+BUDDY_INTRO = (
+    "🤝 <b>رفیق مطالعه</b>\n\n"
+    "می‌تونی دوست خودت رو دعوت کنی یا برای پیدا کردن رفیق ناشناس وارد صف بشی.\n"
+    "با هم به همدیگه تلنگر ملایم می‌زنید که امروز بخونید.\n\n"
+    "• فقط نام نمایشی‌ات برای رفیقت دیده می‌شه\n"
+    "• هر وقت بخوای می‌تونی هم‌یاری رو تمام کنی\n"
+    "• تلنگر حداکثر روزی یک‌باره\n\n"
+    "آماده‌ای؟"
+)
+BUDDY_INVITE_READY = (
+    "لینک یک‌بارمصرفت آماده است؛ تا ۷ روز اعتبار دارد:\n<code>{link}</code>\n\n"
+    "فقط کسی که این لینک را برایش می‌فرستی می‌تواند رفیقت شود."
+)
+BUDDY_INVITE_ACCEPTED = "🤝 دعوت {name} رو پذیرفتی؛ از «رفیق مطالعه» می‌تونی وضعیتش رو ببینی."
+BUDDY_INVITE_PEER_ACCEPTED = "🤝 {name} دعوتت رو پذیرفت و رفیق مطالعه‌ات شد."
+BUDDY_INVITE_ALREADY_FRIENDS = "شما از قبل رفیق مطالعهٔ هم هستین 🤝"
+BUDDY_INVITE_BUSY = (
+    "برای پذیرفتن دعوت، هیچ‌کدام نباید توی صف ناشناس باشین. "
+    "لینک هنوز مصرف نشده و بعداً می‌تونی دوباره امتحان کنی."
+)
+BUDDY_INVITE_UNAVAILABLE = "این لینک معتبر نیست، منقضی شده یا قبلاً استفاده شده."
+BUDDY_ALREADY_QUEUED = "اول از صف ناشناس خارج شو، بعد می‌تونی لینک دعوت بسازی."
+BUDDY_WAITING = (
+    "دنبال رفیق می‌گردیم... 🔍\n"
+    "به‌محض پیدا شدن، خبرت می‌کنم. این صفحه رو می‌تونی هر وقت ببینی."
+)
+BUDDY_LEFT_QUEUE = "انتظار لغو شد."
+BUDDY_MATCHED_SELF = "🤝 رفیقت پیدا شد: <b>{name}</b>! از «🤝 رفیق مطالعه» وضعیتش رو دنبال کن."
+BUDDY_MATCHED_PEER = "🤝 رفیق جدید پیدا شد: <b>{name}</b>! از «🤝 رفیق مطالعه» شروع کن."
+NUDGE_PUSH = "🔔 <b>{name}</b> بهت تلنگر زد: یه گوشه بشین و یه کم بخون!"
+BUDDY_NUDGE_SENT = "تلنگر رفت 🔔"
+BUDDY_NUDGE_LIMIT = "امروز یه تلنگر زدی؛ فردا دوباره 🙂"
+BUDDY_ALREADY_READ = "رفیقت امروز مطالعه‌ش رو ثبت کرده؛ تلنگر براش نفرستادم ✅"
+BUDDY_NUDGE_PROMPT = "امروز خوندی 👏 دوست داری به رفیق‌هایی که هنوز نخوندن تلنگر بزنی؟"
+BUDDY_ENDED = (
+    "هم‌یاری تمام شد. بدون دلخوری؛ هر وقت خواستی دوباره می‌تونی رفیق پیدا کنی 👋"
+)
+
+
+def buddy_screen(name: str, streak: int, read_today: bool) -> str:
+    if read_today:
+        status = "✅ امروزش رو ثبت کرده"
+    else:
+        status = "⏳ هنوز امروز نخونده"
+    return (
+        f"🤝 <b>رفیقت: {name}</b>\n\n"
+        f"🔥 استریک: {fa(streak)} روز\n"
+        f"{status}\n\n"
+        "اگه دیر کرد، یه تلنگر دوستانه بزن."
+    )
+
+
+def buddy_overview(names: list[str], queued: bool) -> str:
+    if names:
+        friends = "\n".join(
+            f"{fa(index)}. <b>{buddy_name(name)}</b>" for index, name in enumerate(names, 1)
+        )
+        text = f"🤝 <b>رفیق‌های مطالعه‌ات</b>\n\n{friends}"
+    else:
+        text = "🤝 هنوز رفیق مطالعه‌ای نداری."
+    if queued:
+        text += "\n\n🔍 توی صف پیدا کردن رفیق ناشناس هستی."
+    return text
+
+
+def buddy_name(display_name: str | None) -> str:
+    from html import escape
+
+    return escape((display_name or "کتاب‌خوان").replace("\n", " ").strip() or "کتاب‌خوان")
+
+
+def buddy_button_name(display_name: str | None) -> str:
+    name = (display_name or "کتاب‌خوان").replace("\n", " ").strip() or "کتاب‌خوان"
+    return name[:40]
+
+
+def buddy_nudge_summary(sent: int, already_read: int, already_nudged: int, failed: int) -> str:
+    if not sent and not already_read and not already_nudged and not failed:
+        return "امروز موردی برای تلنگر نبود."
+    parts = []
+    if sent:
+        parts.append(f"به {fa(sent)} نفر تلنگر رفت")
+    if already_read:
+        parts.append(f"{fa(already_read)} نفر امروز خوانده بودند")
+    if already_nudged:
+        parts.append(f"به {fa(already_nudged)} نفر امروز قبلاً تلنگر زده بودی")
+    if failed:
+        parts.append(f"ارسال به {fa(failed)} نفر انجام نشد")
+    return "؛ ".join(parts) + "."
+
+
+def home(
+    streak: int,
+    best: int,
+    strip: str,
+    read_today: bool,
+    freeze_balance: int,
+    miswak_streak: int | None = None,
+) -> str:
     if streak:
         streak_line = f"🔥 <b>{fa(streak)}</b> روز پشت‌سرهم"
     else:
@@ -60,7 +252,7 @@ def home(streak: int, best: int, strip: str, read_today: bool, freeze_balance: i
     else:
         status = "⏳ امروز هنوز نخوندی. همین الان یه استریک جدید شروع کن!"
 
-    return (
+    result = (
         "📚 <b>کتابخونه مرجع</b>\n\n"
         f"{streak_line}\n"
         f"🏆 رکورد: {fa(best)} روز\n\n"
@@ -69,6 +261,28 @@ def home(streak: int, best: int, strip: str, read_today: bool, freeze_balance: i
         f"{strip}\n\n"
         f"{status}"
     )
+    if miswak_streak is not None:
+        result += f"\n\n🪥 استریک مسباک: {fa(miswak_streak)} روز"
+    return result
+
+
+def comeback_line(change, total_streak: int) -> str | None:
+    if change is None:
+        return None
+    if change.bonus_added:
+        return COMEBACK_RESTORED.format(added=fa(change.bonus_added), total=fa(total_streak))
+    if change.broken_days:
+        return COMEBACK_BROKEN.format(days=fa(change.broken_days))
+    if change.progress_done:
+        return COMEBACK_PROGRESS.format(done=fa(change.progress_done))
+    return None
+
+
+def badge_toast(codes: list[str]) -> str | None:
+    if not codes:
+        return None
+    labels = " · ".join(badge_label(code) for code in codes)
+    return f"🏅 نشان جدید گرفتی: {labels}"
 
 
 def read_toast(
@@ -77,6 +291,8 @@ def read_toast(
     freeze_used: bool = False,
     freeze_earned: bool = False,
     freeze_balance: int = 0,
+    comeback: str | None = None,
+    badges: list[str] | None = None,
 ) -> str:
     if not created:
         return ALREADY_READ
@@ -93,6 +309,11 @@ def read_toast(
             f"\n🎁 یک فریز جایزه گرفتی؛ موجودی: "
             f"{fa(freeze_balance)}/{fa(MAX_STREAK_FREEZES)}"
         )
+    if comeback:
+        message += f"\n{comeback}"
+    badge_line = badge_toast(badges or [])
+    if badge_line:
+        message += f"\n{badge_line}"
     return message
 
 
@@ -131,15 +352,30 @@ def weekly_summary(days_read: int, streak: int, best: int, freeze_balance: int) 
     )
 
 
-def profile(streak: int, best: int, freeze_balance: int, opted_out: bool) -> str:
+def profile(
+    streak: int,
+    best: int,
+    freeze_balance: int,
+    opted_out: bool,
+    badges: list[str],
+    miswak_streak: int | None = None,
+) -> str:
     participation = "خاموش" if opted_out else "روشن"
-    return (
+    if badges:
+        badges_line = " · ".join(badge_label(code) for code in badges)
+    else:
+        badges_line = "هنوز نشانی نداری؛ اولین مطالعه اولین نشانته ⭐"
+    result = (
         "👤 <b>پروفایل من</b>\n\n"
         f"🔥 استریک فعلی: {fa(streak)} روز\n"
         f"🏆 بهترین استریک: {fa(best)} روز\n"
         f"🛡️ فریزهای موجود: {fa(freeze_balance)}/{fa(MAX_STREAK_FREEZES)}\n"
-        f"🏅 حضور در لیدربورد: {participation}"
+        f"🏅 حضور در لیدربورد: {participation}\n\n"
+        f"🎖 نشان‌ها: {badges_line}"
     )
+    if miswak_streak is not None:
+        result += f"\n🪥 استریک مسباک: {fa(miswak_streak)} روز"
+    return result
 
 
 def support() -> str:
@@ -160,6 +396,7 @@ def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> 
         "📊 <b>گزارش بات (UTC)</b>\n\n"
         f"👤 کاربران ثبت‌شده: {fa(stats['users'])}\n"
         f"🚀 شروع‌کننده‌ها: {fa(stats['starters'])}\n"
+        f"🎓 آنبردینگ کامل‌شده: {fa(stats['onboarded'])}\n"
         f"🆕 شروع در ۷/۳۰ روز: {fa(stats['starts_7d'])} / {fa(stats['starts_30d'])}\n"
         f"🟢 فعال روزانه/هفتگی/ماهانه: "
         f"{fa(stats['dau'])} / {fa(stats['wau'])} / {fa(stats['mau'])}\n"
@@ -174,7 +411,16 @@ def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> 
         f"بیشترین جاری/رکورد: {fa(stats['max_current_streak'])} / "
         f"{fa(stats['max_record_streak'])} روز\n"
         f"⏰ یادآورها: {fa(stats['reminders'])}\n"
+        f"🪥 مسباک · عضو فعال: {fa(stats['miswak_members'])} · فعال ۷/۳۰ روز: "
+        f"{fa(stats['miswak_active_7d'])}/{fa(stats['miswak_active_30d'])} · "
+        f"تکمیل هدف ۷روزه: {fa(stats['miswak_completed_days_7d'])} روز، "
+        f"{fa(stats['miswak_completion_rate_7d'])}% از روزهای دارای ثبت\n"
         f"🛡️ فریزهای مصرف‌شده: {fa(stats['freezes_used'])}\n"
+        f"⚠️ هشدار «استریک در خطر» در ۷ روز: {fa(stats['streak_alerts_7d'])}\n"
+        f"🔁 کاربران با پاداش comeback: {fa(stats['comeback_users'])}\n"
+        f"🎖 نشان‌ها: {fa(stats['badges_total'])} اهدا به {fa(stats['badge_holders'])} نفر\n"
+        f"🤝 جفت‌های رفیق مطالعه: {fa(stats['buddy_pairs_active'])} فعال · "
+        f"{fa(stats['buddy_pairs_total'])} کل\n"
         f"🗑 حساب حذف‌شده: {fa(stats['accounts_deleted'])} · ۷ روز اخیر: "
         f"{fa(stats['deletions_7d'])}\n\n"
         "<b>فعالیت ۷ روز اخیر</b>\n" + "\n".join(chart)
@@ -188,3 +434,147 @@ def reminder_push(streak: int) -> str:
             f"🔥 استریک {fa(streak)} روزه‌ات منتظرته، امروز هم ادامه بده."
         )
     return "⏰ <b>وقت مطالعه‌ست!</b>\nامروز یه استریک جدید شروع کن 🔥"
+
+
+MISWAK_INTRO = (
+    "🪥 <b>بخش مسباک</b>\n\n"
+    "هدفت رو از ۱ تا ۵ نوبت در روز انتخاب کن؛ برای هر نوبت یک یادآور داری و فقط با کامل‌کردن "
+    "هدفت استریک می‌گیری.\n\n"
+    "با عضویت در این بخش، آموزش‌های ادمین هم برایت ارسال می‌شود. برای توقف یادآورها و آموزش‌ها "
+    "هر وقت خواستی از بخش خارج شو.\n\n"
+    "این بخش کاملاً جدا از استریک مطالعه است."
+)
+MISWAK_BAD_TIME = "ساعت درست نیست؛ مثلاً <code>06:30</code> یا <code>۷:۴۵</code> بفرست."
+MISWAK_JOINED = "بخش مسباک برایت فعال شد ✅"
+MISWAK_EXITED = "از بخش مسباک خارج شدی؛ یادآورها و آموزش‌های بعدی متوقف شدند. سابقه‌ات محفوظ است."
+MISWAK_RECORDED = "این نوبت ثبت شد ✅"
+MISWAK_DUPLICATE = "این نوبت امروز قبلاً ثبت شده ✅"
+MISWAK_INACTIVE = "برای ثبت نوبت، اول به بخش مسباک بپیوند."
+MISWAK_STALE_ACTION = "این دکمه برای روز دیگری است؛ صفحه را دوباره باز کن."
+MISWAK_REMINDER = "⏰ وقت نوبت {slot} مسباکه؛ بعد از انجام، اینجا ثبتش کن."
+
+
+def miswak_screen(
+    goal: int,
+    completed: int,
+    streak: int,
+    best: int,
+    times: list[str],
+    pending_goal: int | None,
+    pending_date: str | None,
+    badges: list[str] | None = None,
+) -> str:
+    lines = [
+        "🪥 <b>استریک مسباک</b>",
+        "",
+        f"امروز: {fa(completed)} از {fa(goal)} نوبت",
+        f"🔥 استریک فعلی: {fa(streak)} روز",
+        f"🏆 بهترین رکورد: {fa(best)} روز",
+        "",
+        "⏰ ساعت‌های یادآوری:",
+    ]
+    lines.extend(f"نوبت {fa(index)} · {value}" for index, value in enumerate(times, 1))
+    if pending_goal is not None and pending_date is not None:
+        lines.extend(
+            ["", f"هدف {fa(pending_goal)} نوبتی از {pending_date} اعمال می‌شود."]
+        )
+    if completed >= goal:
+        lines.extend(["", "🎉 سهمیهٔ امروزت کامل شد!"])
+    badge_labels = {"streak_7": "۷ روز", "streak_30": "۳۰ روز", "streak_100": "۱۰۰ روز"}
+    earned = [badge_labels[code] for code in badges or [] if code in badge_labels]
+    lines.extend(["", "🏅 دستاوردها: " + (" · ".join(earned) if earned else "هنوز نشانی نداری")])
+    return "\n".join(lines)
+
+
+def miswak_recorded(
+    completed: int, goal: int, streak: int, new_badges: list[str] | None = None
+) -> str:
+    if completed >= goal:
+        message = f"🎉 هدف امروز کامل شد؛ استریک مسباکت {fa(streak)} روزه شد!"
+    else:
+        message = f"این نوبت ثبت شد ✅ · {fa(completed)} از {fa(goal)}"
+    badge_labels = {"streak_7": "هفت روز", "streak_30": "سی روز", "streak_100": "صد روز"}
+    if new_badges:
+        message += "\n🏅 نشان جدید: " + "، ".join(badge_labels[code] for code in new_badges)
+    return message
+
+
+def miswak_reminder(slot: int) -> str:
+    return MISWAK_REMINDER.format(slot=fa(slot))
+
+
+def miswak_weekly(completed_days: int, streak: int, best: int, days: list[str]) -> str:
+    return (
+        "📊 <b>گزارش مسباک · ۷ روز اخیر</b>\n\n"
+        f"روزهای کامل: {fa(completed_days)} از ۷\n"
+        f"درصد تکمیل: {fa(round(completed_days * 100 / 7))}%\n"
+        f"استریک فعلی: {fa(streak)} روز\n"
+        f"بهترین رکورد: {fa(best)} روز\n\n"
+        + "\n".join(days)
+    )
+
+
+def miswak_monthly(completed_days: int, streak: int, best: int) -> str:
+    return (
+        "📅 <b>گزارش مسباک · ۳۰ روز اخیر</b>\n\n"
+        f"روزهای کامل: {fa(completed_days)} از ۳۰\n"
+        f"درصد تکمیل: {fa(round(completed_days * 100 / 30))}%\n"
+        f"استریک فعلی: {fa(streak)} روز\n"
+        f"بهترین رکورد: {fa(best)} روز"
+    )
+
+
+def miswak_challenge(duration: int, progress: int, ends_on: str) -> str:
+    from datetime import date
+
+    from BOOKzMA.utils import fa
+
+    if progress >= duration:
+        status = "🎉 چالش رو کامل کردی!"
+    else:
+        status = f"روزهای کامل و پشت‌سرهم: {fa(progress)} از {fa(duration)}"
+    return (
+        f"🏁 <b>چالش {fa(duration)} روزهٔ مسباک</b>\n\n"
+        f"{status}\n"
+        f"پایان: {date.fromisoformat(ends_on).strftime('%Y/%m/%d')}"
+    )
+
+
+def miswak_league(rows: list[tuple[int, str, int]], opted_in: bool) -> str:
+    from html import escape
+
+    if not rows:
+        return "🏆 <b>لیگ مسباک</b>\n\nهنوز کسی در لیگ نیست؛ اولین نفر تو باش!"
+    lines = ["🏆 <b>لیگ هفتگی مسباک</b>"]
+    for rank, (_user_id, name, completed) in enumerate(rows[:10], 1):
+        safe_name = escape(name.replace("\n", " ")[:48])
+        lines.append(f"{fa(rank)}. {safe_name} · {fa(completed)} روز کامل")
+    if not opted_in:
+        lines.append("\nبرای نمایش نام و رتبه‌ات، عضویت در لیگ رو فعال کن.")
+    return "\n".join(lines)
+
+
+def miswak_buddies(rows: list[tuple[int, str]]) -> str:
+    from html import escape
+
+    if not rows:
+        return "🤝 <b>رفیق‌های مسباک</b>\n\nهنوز رفیقی نداری؛ دوستت رو دعوت کن."
+    names = "\n".join(f"• {escape(name.replace(chr(10), ' ')[:48])}" for _, name in rows)
+    return f"🤝 <b>رفیق‌های مسباک</b>\n\n{names}\n\nتلنگرها حداکثر روزی یک‌بارند."
+
+
+def miswak_buddy_invite_ready(link: str) -> str:
+    return f"لینک دعوت یک‌بارمصرفت تا ۷ روز معتبره:\n<code>{link}</code>"
+
+
+def miswak_buddy_nudge(name: str) -> str:
+    from html import escape
+
+    return f"🔔 <b>{escape(name)}</b> برات یک تلنگر مسباک فرستاد."
+
+
+MISWAK_BUDDY_ACCEPTED = "رفاقت مسباک برقرار شد 🤝"
+MISWAK_BUDDY_ALREADY = "شما از قبل رفیق مسباک هم هستین."
+MISWAK_BUDDY_INACTIVE = "برای پذیرش دعوت، هر دو نفر باید عضو فعال بخش مسباک باشید."
+MISWAK_BUDDY_UNAVAILABLE = "این دعوت معتبر نیست، منقضی شده یا قبلاً استفاده شده."
+MISWAK_BUDDY_SELF = "نمی‌تونی دعوت خودت رو بپذیری."

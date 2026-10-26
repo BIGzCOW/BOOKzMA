@@ -2,6 +2,8 @@ import hashlib
 import hmac
 import json
 import time
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, sentinel
 from urllib.parse import urlencode
 
 import jwt
@@ -85,3 +87,30 @@ def test_startup_runs_database_migrations(monkeypatch):
         assert client.get("/health").status_code == 200
 
     assert migrated_urls == [settings.database_url]
+
+
+def test_startup_passes_injected_bot_session(monkeypatch):
+    settings = Settings(bot_token=SecretStr(BOT_TOKEN))
+    session_pool = object()
+    injected_session = sentinel.bot_session
+    engine = SimpleNamespace(dispose=AsyncMock())
+    bot = SimpleNamespace(session=SimpleNamespace(close=AsyncMock()))
+    received = []
+
+    async def fake_start_bot(settings, pool, bot_session=None):
+        received.append((pool, bot_session))
+        return bot, []
+
+    monkeypatch.setattr(
+        "BOOKzMA.api.create_session_pool", lambda database_url: (engine, session_pool)
+    )
+    monkeypatch.setattr("BOOKzMA.api.start_bot", fake_start_bot)
+
+    with TestClient(
+        create_app(settings, run_migrations=False, bot_session=injected_session)
+    ) as client:
+        assert client.get("/health").status_code == 200
+
+    assert received == [(session_pool, injected_session)]
+    engine.dispose.assert_awaited_once()
+    bot.session.close.assert_awaited_once()

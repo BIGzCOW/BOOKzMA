@@ -9,7 +9,12 @@ from aiogram.types import CallbackQuery, User
 from pydantic import SecretStr
 
 from BOOKzMA.config import Settings
-from BOOKzMA.handlers.admin import _campaign_id, is_admin, on_admin_stats
+from BOOKzMA.handlers.admin import (
+    _campaign_id,
+    _valid_broadcast_url,
+    is_admin,
+    on_admin_stats,
+)
 from BOOKzMA.handlers.common import show
 from BOOKzMA.middlewares.membership import MembershipMiddleware
 
@@ -28,6 +33,14 @@ def test_campaign_callback_ids_are_strictly_parsed():
     assert _campaign_id("broadcast:start:2147483648", "start") is None
     assert _campaign_id("broadcast:start:42:extra", "start") is None
     assert _campaign_id("broadcast:cancel:42", "start") is None
+
+
+def test_broadcast_button_url_requires_valid_https_without_userinfo():
+    assert _valid_broadcast_url("https://example.com/lesson")
+    assert not _valid_broadcast_url("http://example.com/lesson")
+    assert not _valid_broadcast_url("https://user:secret@example.com/lesson")
+    assert not _valid_broadcast_url("https://[broken")
+    assert not _valid_broadcast_url("https://example.com:invalid")
 
 
 def test_configured_admin_bypasses_membership_middleware(monkeypatch):

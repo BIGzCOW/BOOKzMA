@@ -6,6 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# postgresql-client برای pg_dump/pg_restore (بکاپ از داخل کانتینر bot)؛ نسخهٔ کلاینت باید از سرور بزرگ‌تر یا مساوی باشد
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

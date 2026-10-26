@@ -3,7 +3,18 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from BOOKzMA.db.models import ActivityDay, ReadingLog, Reminder, StreakFreeze, User
+from BOOKzMA.db.models import (
+    ActivityDay,
+    Badge,
+    BuddyPair,
+    MiswakEntry,
+    MiswakProfile,
+    ReadingLog,
+    Reminder,
+    StreakAlert,
+    StreakFreeze,
+    User,
+)
 from BOOKzMA.repositories import users
 from BOOKzMA.services.streak import compute_streak, longest_streak
 from BOOKzMA.utils import local_today
@@ -17,6 +28,10 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         "users": await session.scalar(select(func.count()).select_from(User)) or 0,
         "starters": await session.scalar(
             select(func.count()).select_from(User).where(User.started_at.is_not(None))
+        )
+        or 0,
+        "onboarded": await session.scalar(
+            select(func.count()).select_from(User).where(User.onboarded_at.is_not(None))
         )
         or 0,
         "starts_7d": await session.scalar(
@@ -43,10 +58,23 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
             select(func.count()).select_from(StreakFreeze).where(StreakFreeze.kind == "used")
         )
         or 0,
+        "streak_alerts_7d": await session.scalar(
+            select(func.count()).select_from(StreakAlert).where(StreakAlert.day >= seven_days_ago)
+        )
+        or 0,
+        "comeback_users": await session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.comeback_bonus_days > 0)
+        )
+        or 0,
     }
     counts["inactive_30d"] = await _inactive_starters(session, thirty_days_ago)
     counts.update(await retention_rates(session, today))
     counts.update(await streak_stats(session))
+    counts.update(await badges_stats(session))
+    counts.update(await buddy_stats(session))
+    counts.update(await miswak_stats(session, today))
     deleted_total, deleted_recent = await users.deletion_counts(
         session, now - timedelta(days=7)
     )
@@ -135,6 +163,77 @@ async def retention_rates(session: AsyncSession, today: date) -> dict[str, int]:
 
 def _utc_day(column):
     return cast(func.timezone("UTC", column), Date)
+
+
+async def badges_stats(session: AsyncSession) -> dict[str, int]:
+    total = await session.scalar(select(func.count()).select_from(Badge)) or 0
+    holders = await session.scalar(select(func.count(func.distinct(Badge.user_id)))) or 0
+    return {"badges_total": total, "badge_holders": holders}
+
+
+async def buddy_stats(session: AsyncSession) -> dict[str, int]:
+    active = (
+        await session.scalar(
+            select(func.count()).select_from(BuddyPair).where(BuddyPair.status == "active")
+        )
+        or 0
+    )
+    total = await session.scalar(select(func.count()).select_from(BuddyPair)) or 0
+    return {"buddy_pairs_active": active, "buddy_pairs_total": total}
+async def miswak_stats(session: AsyncSession, today: date) -> dict[str, int]:
+    seven_days_ago = today - timedelta(days=6)
+    thirty_days_ago = today - timedelta(days=29)
+    daily = (
+        select(
+            MiswakEntry.user_id.label("user_id"),
+            MiswakEntry.day.label("day"),
+            func.count().label("done"),
+            func.max(MiswakEntry.daily_goal).label("goal"),
+        )
+        .join(MiswakProfile, MiswakProfile.user_id == MiswakEntry.user_id)
+        .where(MiswakProfile.enabled.is_(True))
+        .group_by(MiswakEntry.user_id, MiswakEntry.day)
+        .subquery()
+    )
+    enabled_members = await session.scalar(
+        select(func.count()).select_from(MiswakProfile).where(MiswakProfile.enabled.is_(True))
+    ) or 0
+    active_7d = await session.scalar(
+        select(func.count(func.distinct(MiswakEntry.user_id)))
+        .join(MiswakProfile, MiswakProfile.user_id == MiswakEntry.user_id)
+        .where(
+            MiswakProfile.enabled.is_(True),
+            MiswakEntry.day.between(seven_days_ago, today),
+        )
+    ) or 0
+    active_30d = await session.scalar(
+        select(func.count(func.distinct(MiswakEntry.user_id)))
+        .join(MiswakProfile, MiswakProfile.user_id == MiswakEntry.user_id)
+        .where(
+            MiswakProfile.enabled.is_(True),
+            MiswakEntry.day.between(thirty_days_ago, today),
+        )
+    ) or 0
+    active_days_7d = await session.scalar(
+        select(func.count()).select_from(daily).where(daily.c.day.between(seven_days_ago, today))
+    ) or 0
+    completed_days_7d = await session.scalar(
+        select(func.count())
+        .select_from(daily)
+        .where(
+            daily.c.day.between(seven_days_ago, today),
+            daily.c.done >= daily.c.goal,
+        )
+    ) or 0
+    return {
+        "miswak_members": enabled_members,
+        "miswak_active_7d": active_7d,
+        "miswak_active_30d": active_30d,
+        "miswak_completed_days_7d": completed_days_7d,
+        "miswak_completion_rate_7d": round(completed_days_7d * 100 / active_days_7d)
+        if active_days_7d
+        else 0,
+    }
 
 
 async def streak_stats(session: AsyncSession) -> dict[str, int]:
