@@ -11,11 +11,13 @@ from BOOKzMA.db.models import (
     MesbakBuddyPair,
     MesbakBuddyQueue,
     MesbakProfile,
+    PageLog,
     ReadingLog,
     Reminder,
     StreakAlert,
     StreakFreeze,
     User,
+    UserBook,
 )
 from BOOKzMA.repositories import users
 from BOOKzMA.services.streak import compute_streak, longest_streak
@@ -55,6 +57,20 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         "readers_30d": await _readers(session, thirty_days_ago, today),
         "reading_days_7d": await _reading_days(session, seven_days_ago, today),
         "reading_days_30d": await _reading_days(session, thirty_days_ago, today),
+        "active_books": await session.scalar(
+            select(func.count()).select_from(UserBook).where(UserBook.status == "reading")
+        )
+        or 0,
+        "finished_books": await session.scalar(
+            select(func.count()).select_from(UserBook).where(UserBook.finished_at.is_not(None))
+        )
+        or 0,
+        "pages_7d": await session.scalar(
+            select(func.coalesce(func.sum(PageLog.pages_read), 0)).where(
+                PageLog.day.between(seven_days_ago, today)
+            )
+        )
+        or 0,
         "reminders": await session.scalar(select(func.count()).select_from(Reminder)) or 0,
         "freezes_used": await session.scalar(
             select(func.count()).select_from(StreakFreeze).where(StreakFreeze.kind == "used")

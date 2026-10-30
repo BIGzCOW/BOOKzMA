@@ -2,6 +2,8 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from aiogram import Router
+from aiogram.fsm.storage.memory import SimpleEventIsolation
 from pydantic import SecretStr
 
 from BOOKzMA import bot as bot_module
@@ -10,6 +12,7 @@ from BOOKzMA.config import Settings
 
 def test_polling_does_not_override_uvicorn_signal_handlers(monkeypatch):
     polling_options = {}
+    isolation = []
 
     class StubBot:
         def __init__(self, **kwargs):
@@ -23,11 +26,14 @@ def test_polling_does_not_override_uvicorn_signal_handlers(monkeypatch):
 
     async def fake_start_polling(self, bot, **kwargs):
         polling_options.update(kwargs)
+        isolation.append(self.fsm.events_isolation)
         await asyncio.Event().wait()
 
     monkeypatch.setattr(bot_module, "Bot", StubBot)
+    monkeypatch.setattr(bot_module, "get_router", Router)
     monkeypatch.setattr(bot_module.Dispatcher, "start_polling", fake_start_polling)
     monkeypatch.setattr(bot_module, "reminder_loop", idle_loop)
+    monkeypatch.setattr(bot_module, "mesbak_reminder_loop", idle_loop)
     monkeypatch.setattr(bot_module, "broadcast_loop", idle_loop)
     monkeypatch.setattr(bot_module, "risk_alert_loop", idle_loop)
 
@@ -42,3 +48,5 @@ def test_polling_does_not_override_uvicorn_signal_handlers(monkeypatch):
     asyncio.run(run_startup())
 
     assert polling_options == {"handle_signals": False}
+    assert len(isolation) == 1
+    assert isinstance(isolation[0], SimpleEventIsolation)

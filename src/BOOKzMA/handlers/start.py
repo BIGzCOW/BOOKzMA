@@ -126,7 +126,10 @@ async def on_home(callback: CallbackQuery, session: AsyncSession, state: FSMCont
 
 
 @router.message(F.text == "🏠 خانه")
-async def on_menu_home(message: Message, session: AsyncSession) -> None:
+async def on_menu_home(
+    message: Message, session: AsyncSession, state: FSMContext
+) -> None:
+    await state.clear()
     if message.from_user:
         await render_home(message, session, message.from_user)
 

@@ -18,7 +18,7 @@ Use Python 3.12, matching `pyproject.toml` and CI. The reported command sequence
 python3.12 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-cp .env.sample .env
+test -f .env || cp .env.sample .env
 docker compose up -d db
 docker compose stop bot
 PYTHONPATH=src python dev_run.py
@@ -32,7 +32,9 @@ Before starting, ensure `DATABASE_URL` targets the local Compose database and `P
 
 Use a separate test bot. Do not poll the same token from both local and production instances. The test bot must have the channel permissions required by the configured membership gate. Do not expose private token or proxy values in logs or issue reports.
 
-Local (non-Docker) backups: the backup service writes to `BACKUP_DIR` (default `backups`, resolved relative to the project root). The default location is `<project-root>/backups`; absolute paths are also accepted. The Compose variable `BOOKZMA_BACKUP_DIR` is only needed for `docker compose up` of the full stack, where the host directory is mounted at `/backups`.
+Compose validates the entire configuration even for `docker compose up -d db`. Define non-empty `POSTGRES_PASSWORD` and `BOOKZMA_BACKUP_DIR` in the local `.env` before running it; `docker compose config --quiet` checks interpolation without printing credentials. For local development, `BOOKZMA_BACKUP_DIR=./backups` is supported by `.env.sample`; create the folder with `mkdir -p backups` and `chmod 700 backups`. The host launcher needs a matching password in `DATABASE_URL`, using `127.0.0.1:5433`. A registry `403 Forbidden` during image download must be resolved at the Docker daemon/network layer before PostgreSQL or migrations can run; `TELEGRAM_PROXY` does not configure the Docker daemon.
+
+Local (non-Docker) backups: the backup service writes to `BACKUP_DIR` (default `backups`, resolved relative to the project root). The default location is `<project-root>/backups`; absolute paths are also accepted. Compose requires `BOOKZMA_BACKUP_DIR` during configuration validation and mounts that host directory at `/backups` when the bot container runs. Server backup folders must be outside the repository and writable by UID 10001; see [BACKUP.md](BACKUP.md).
 
 ## Compatibility Boundary
 

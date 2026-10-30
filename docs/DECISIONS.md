@@ -16,19 +16,19 @@ Each entry records current intent, not a claim that future work is implemented.
 
 **Revisit when:** A second client is actively being built, an existing API consumer needs a change, or measured requirements justify architectural work. Write a spec and review compatibility before changing routes.
 
-## D-02 — `dev_run.py` Is Owner-Local
+## D-02 — Shared Local Launcher, Private Configuration
 
-**Status:** Owner-local workflow; the launcher is ignored and intentionally untracked. The owner authorized creating it in the local workspace for this task; its contents remain outside Git.
+**Status:** The launcher is tracked, as required by the current `AGENTS.md` and confirmed by Git's tracked-file list. Credentials and machine-specific proxy values remain in private environment configuration.
 
 **Context:** The local launcher runs the shared app on the host with an optional aiogram proxy session and a separate test bot token while PostgreSQL remains in Compose.
 
-**Decision:** Keep the launcher ignored and local-only; do not inspect or commit it. Keep proxy construction in the launcher, not `src/`. The app accepts an optional injected aiogram session; Docker leaves it unset. Local development uses a host-reachable `DATABASE_URL` and must stop the Compose bot before polling with the same token.
+**Decision:** Keep the shared launcher tracked and preserve its local-development contract. Never embed credentials in it or put proxy construction in `src/`. The app accepts an optional injected aiogram session; Docker leaves it unset. Local development uses a host-reachable `DATABASE_URL` and must stop the Compose bot before polling with the same token. This feature does not inspect or change the launcher.
 
-**Why:** The launcher contains machine-specific configuration and is intentionally outside Git.
+**Why:** Contributors need a shared entrypoint while secrets and machine-specific settings remain outside Git.
 
-**Alternatives:** Put proxy logic in the application (rejected); publish a separately approved placeholder-only example (not requested).
+**Alternatives:** Put proxy logic in the application (rejected); maintain separate private launchers (superseded by the current shared-launcher rule).
 
-**Revisit when:** The owner explicitly requests a tracked example or changes local setup.
+**Revisit when:** The owner changes local setup or the shared entrypoint contract.
 
 ## D-03 — Streak Is Derived From Reads and Freeze Events
 
@@ -59,6 +59,8 @@ Each entry records current intent, not a claim that future work is implemented.
 **Alternatives:** Shared FSM/cache and distributed reminder claiming (more infrastructure and coordination); one process (current).
 
 **Revisit when:** Measured load or availability requirements require multiple instances.
+
+**Personal-library correctness:** Use aiogram's in-process `SimpleEventIsolation` to serialize updates for each user/chat FSM key before loading state. Together with clearing successful/abandoned forms, this prevents overlapping final form messages from creating duplicate books. This does not add Redis or persistent FSM storage and is not a general durable update-deduplication system. Page logging additionally uses database row locks and unique message IDs.
 
 ## D-05 — Telegram Admin Allowlist
 

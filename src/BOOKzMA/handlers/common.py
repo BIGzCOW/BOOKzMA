@@ -4,10 +4,13 @@ from aiogram.types import User as TgUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from BOOKzMA import keyboards, texts
+from BOOKzMA.db.models import User
+from BOOKzMA.repositories import buddy as buddy_repo
 from BOOKzMA.repositories import readings, users
 from BOOKzMA.repositories import streak_freezes
 from BOOKzMA.repositories import mesbak as mesbak_repo
 from BOOKzMA.services.mesbak import completed_days, current_streak
+from BOOKzMA.services.buddy_nudges import classify_nudge_targets
 from BOOKzMA.services.streak import displayed_streak, longest_streak, week_strip
 from BOOKzMA.utils import local_today
 
@@ -56,3 +59,25 @@ async def render_home(event: Message | CallbackQuery, session: AsyncSession, tg:
         text,
         keyboards.home_kb(read_today, mesbak_profile is not None and mesbak_profile.enabled),
     )
+
+
+async def offer_buddy_nudge(
+    message: Message | None, session: AsyncSession, user: User
+) -> None:
+    if message is None:
+        return
+    buddies = await buddy_repo.active_buddy_users(session, user.id)
+    if not buddies:
+        return
+    read_user_ids = await readings.users_read_on_days(
+        session,
+        [(buddy.id, local_today(buddy.timezone)) for _pair, buddy in buddies],
+    )
+    targets, _already_read, _already_nudged = classify_nudge_targets(
+        buddies, read_user_ids, local_today(user.timezone)
+    )
+    if targets:
+        await message.answer(
+            texts.BUDDY_NUDGE_PROMPT,
+            reply_markup=keyboards.buddy_nudge_prompt_kb(),
+        )

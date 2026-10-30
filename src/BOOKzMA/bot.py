@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.base import BaseSession
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
+from aiogram.fsm.storage.memory import SimpleEventIsolation
 from aiogram.types import BotCommand, BotCommandScopeChat
 
 from BOOKzMA.config import Settings
@@ -42,7 +43,8 @@ async def start_bot(
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
-    dp = Dispatcher()
+    # Read FSM state only after the previous update for this user/chat finishes.
+    dp = Dispatcher(events_isolation=SimpleEventIsolation())
     membership = MembershipMiddleware(settings.admin_ids)
     rate_limit = RateLimitMiddleware(
         settings.rate_limit_max_updates,

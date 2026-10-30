@@ -32,7 +32,7 @@ N-04
 
 - دادهٔ جدید: جدول `deleted_accounts` شامل `user_id` (شناسهٔ تلگرام)، `deleted_at` و `reason` (کد دلیل). هیچ نام، یوزرنیم یا دادهٔ مطالعه‌ای نگه داشته نمی‌شود.
 - آیا داده شخصی است؟ شناسهٔ تلگرام به‌تنهایی برای جلوگیری از ثبت‌نام مجدد خودکار لازم است؛ هدفش پاک‌سازی است نه نگهداری.
-- با حذف حساب چه می‌شود؟ ردیف `users` و همهٔ جداول وابسته (`reading_logs`، `streak_freezes`، `activity_days`، `reminders`، `broadcast_deliveries`) با FK CASCADE پاک می‌شوند.
+- با حذف حساب چه می‌شود؟ ردیف `users` و همهٔ جداول وابسته (`reading_logs`، `user_books` و `page_logs`، `streak_freezes`، `activity_days`، `reminders`، `broadcast_deliveries`) با FK CASCADE پاک می‌شوند.
 - log/cache/FSM/backup: داده ممکن است در بکاپ‌های قدیمی تا انقضا بماند (به کاربر گفته می‌شود). لاگ‌های سرور مالک خارج از محدودهٔ این spec است. FSM در لحظهٔ حذف پاک می‌شود.
 
 ## حالت‌های خاص

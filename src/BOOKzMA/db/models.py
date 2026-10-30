@@ -51,6 +51,52 @@ class ReadingLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class UserBook(Base):
+    __tablename__ = "user_books"
+    __table_args__ = (
+        CheckConstraint("total_pages BETWEEN 1 AND 100000", name="ck_user_book_total_pages"),
+        CheckConstraint(
+            "status IN ('reading', 'finished', 'archived')",
+            name="ck_user_book_status",
+        ),
+        Index("ix_user_books_user_status", "user_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE")
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    author: Mapped[str | None] = mapped_column(String(200))
+    total_pages: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="reading", server_default="reading")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PageLog(Base):
+    __tablename__ = "page_logs"
+    __table_args__ = (
+        CheckConstraint("pages_read BETWEEN 1 AND 100000", name="ck_page_log_pages_read"),
+        UniqueConstraint(
+            "user_book_id",
+            "source_message_id",
+            name="uq_page_log_book_source_message",
+        ),
+        Index("ix_page_logs_day", "day"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_book_id: Mapped[int] = mapped_column(
+        ForeignKey("user_books.id", ondelete="CASCADE")
+    )
+    day: Mapped[date] = mapped_column(Date)
+    pages_read: Mapped[int] = mapped_column(Integer)
+    source_message_id: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class StreakFreeze(Base):
     __tablename__ = "streak_freezes"
     __table_args__ = (

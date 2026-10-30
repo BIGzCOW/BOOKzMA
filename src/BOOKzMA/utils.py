@@ -12,6 +12,14 @@ def fa(value: int | str) -> str:
     return str(value).translate(_EN_TO_FA)
 
 
+def parse_positive_int(text: str, maximum: int) -> int | None:
+    normalized = text.strip().translate(_FA_TO_EN)
+    if not re.fullmatch(r"\d+", normalized):
+        return None
+    value = int(normalized)
+    return value if 0 < value <= maximum else None
+
+
 def parse_time(text: str) -> time | None:
     """21:30 ، ۲۱:۳۰ ، 21.30 یا فقط 21"""
     s = text.strip().translate(_FA_TO_EN).replace(".", ":").replace("٫", ":")

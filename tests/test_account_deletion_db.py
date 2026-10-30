@@ -7,7 +7,16 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from BOOKzMA.db.models import ActivityDay, DeletedAccount, ReadingLog, Reminder, StreakFreeze, User
+from BOOKzMA.db.models import (
+    ActivityDay,
+    DeletedAccount,
+    PageLog,
+    ReadingLog,
+    Reminder,
+    StreakFreeze,
+    User,
+    UserBook,
+)
 from BOOKzMA.repositories import analytics, users
 from BOOKzMA.repositories.readings import mark_read
 
@@ -30,6 +39,18 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                 session.add(StreakFreeze(user_id=user_id, kind="used", day=date(2026, 10, 19)))
                 session.add(Reminder(user_id=user_id, remind_at=time(8, 0)))
                 session.add(ActivityDay(user_id=user_id, day=date(2026, 10, 21)))
+                book = UserBook(user_id=user_id, title="کتاب حذف‌شونده", total_pages=100)
+                session.add(book)
+                await session.flush()
+                session.add(
+                    PageLog(
+                        user_book_id=book.id,
+                        day=date(2026, 10, 21),
+                        pages_read=10,
+                        source_message_id=55,
+                    )
+                )
+                book_id = book.id
 
             async with session_pool.begin() as session:
                 assert await users.delete_account(session, user_id, "privacy") is True
@@ -41,6 +62,12 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                 assert await _count(session, StreakFreeze, user_id) == 0
                 assert await _count(session, Reminder, user_id) == 0
                 assert await _count(session, ActivityDay, user_id) == 0
+                assert await _count(session, UserBook, user_id) == 0
+                assert await session.scalar(
+                    select(func.count()).select_from(PageLog).where(
+                        PageLog.user_book_id == book_id
+                    )
+                ) == 0
                 reason = await session.scalar(
                     select(DeletedAccount.reason).where(DeletedAccount.user_id == user_id)
                 )

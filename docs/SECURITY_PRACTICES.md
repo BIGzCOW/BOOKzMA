@@ -4,7 +4,7 @@ The root [SECURITY.md](../SECURITY.md) is the vulnerability-reporting policy; do
 
 ## Never Store or Share
 
-Do not commit or paste real bot/API tokens, passwords, DSNs, private keys, server connection details, `.env`, private launcher configuration, production user data, or real database backups into Git, issues, PRs, tests, docs, prompts, logs, or screenshots. Keep `.env` and `dev_run.py` ignored. `.env.sample` may contain placeholders only. Use synthetic test identities and data.
+Do not commit or paste real bot/API tokens, passwords, DSNs, private keys, server connection details, `.env`, private launcher configuration, production user data, or real database backups into Git, issues, PRs, tests, docs, prompts, logs, or screenshots. Keep `.env` ignored; the shared `dev_run.py` is tracked and must use environment configuration for credentials. `.env.sample` may contain placeholders only. Use synthetic test identities and data.
 
 Before publishing, inspect changed files and staged names for secrets. If a real secret was committed, treat it as compromised: revoke the bot token through BotFather or rotate the affected credential, then coordinate history cleanup with the repository owner. Deleting it in a later commit is not sufficient. Do not rewrite Git history without owner approval.
 
@@ -23,6 +23,8 @@ Check license and attribution obligations before copying external code, text, or
 
 ## Privacy and Deletion
 
+Personal-library routes enforce private chats on the server. Group menus/callbacks and callbacks without an accessible chat receive only a generic notice; no book title or progress is rendered. Book queries also constrain owner ID. Navigation clears pending book input so a later page count cannot be applied to a previously selected book. `SimpleEventIsolation` serializes each user/chat's FSM updates within the approved single-instance deployment; page logs additionally have a database idempotency constraint.
+
 Before adding a user-data feature, inventory data in tables, caches, FSM state, files, logs, and backups. Account deletion must use an explicit service operation or verified cascades and a test that confirms deletion. Set a backup retention period and tell users that previously deleted data may remain in old backups until expiry. After restoring a backup, reapply deletions recorded since that backup.
 
 ## Docker and Operations
@@ -31,7 +33,7 @@ Keep PostgreSQL bound to loopback unless a reviewed deployment design requires o
 
 ## Repository Findings (Current Audit)
 
-- `.env` and `dev_run.py` exist locally, are ignored, and are not tracked. Their contents were not inspected.
+- `.env` is ignored. The shared `dev_run.py` is tracked, confirmed from Git metadata; neither file's contents were inspected for the personal-library change.
 - Compose publishes PostgreSQL on `127.0.0.1:5433`; the app is published on `127.0.0.1:8000`. The Docker image runs as UID 10001 and copies only selected source/build inputs.
 - `.gitignore` and `.dockerignore` now exclude backup dumps, SQL exports, logs, and Python cache directories in addition to their existing rules.
 - `src/BOOKzMA/config.py` has a fixed local fallback database URL with a development username/password. Compose overrides the URL for the app container, but deployments outside Compose must provide a secure `DATABASE_URL`; never treat that default as production-safe.

@@ -1,8 +1,9 @@
 from html import escape
 
-from BOOKzMA.constants import MAX_REMINDERS, MILESTONES
+from BOOKzMA.constants import MAX_ACTIVE_BOOKS, MAX_BOOK_PAGES, MAX_REMINDERS, MILESTONES
 from BOOKzMA.services.backup import BackupInfo
 from BOOKzMA.services.badges import badge_label
+from BOOKzMA.services.books import progress_percent
 from BOOKzMA.utils import fa
 
 MAX_STREAK_FREEZES = 2
@@ -19,13 +20,29 @@ ADD_RESULT = {
 REMINDER_DELETED = "حذف شد 🗑"
 BAD_TIME = "فرمت ساعت درست نیست 🤔 مثلاً <code>21:30</code> بفرست."
 ALREADY_READ = "امروز رو قبلاً ثبت کردی ✅"
+BOOK_ASK_TITLE = "📚 اسم کتاب رو بفرست."
+BOOK_BAD_TITLE = "اسم کتاب معتبر نیست؛ یک نام کوتاه‌تر و غیرخالی بفرست."
+BOOK_ASK_AUTHOR = "اسم نویسنده رو بفرست یا دکمهٔ «رد کردن» رو بزن."
+BOOK_BAD_AUTHOR = "اسم نویسنده معتبر نیست؛ یک نام کوتاه‌تر بفرست یا از دکمهٔ رد کردن استفاده کن."
+BOOK_ASK_TOTAL_PAGES = "کتاب در مجموع چند صفحه داره؟ فقط یک عدد مثبت بفرست."
+BOOK_BAD_TOTAL_PAGES = f"تعداد کل صفحات باید عددی بین ۱ تا {fa(MAX_BOOK_PAGES)} باشه."
+BOOK_BAD_PAGES = f"تعداد صفحات باید عددی بین ۱ تا {fa(MAX_BOOK_PAGES)} باشه."
+BOOK_LIMIT = f"فعلاً حداکثر {fa(MAX_ACTIVE_BOOKS)} کتاب در حال مطالعه می‌تونی داشته باشی."
+BOOK_FLOW_LOST = "این مرحله با راه‌اندازی دوبارهٔ ربات بسته شده؛ از کتابخانه دوباره شروع کن."
+BOOK_NOT_FOUND = "این کتاب پیدا نشد یا به کتابخانهٔ تو تعلق نداره."
+BOOK_NOT_READABLE = "برای این کتاب نمی‌شه مطالعهٔ جدید ثبت کرد."
+BOOK_PAGES_DUPLICATE = "این پیام قبلاً ثبت شده و دوباره شمرده نشد."
+BOOK_STREAK_ALREADY_RECORDED = "مطالعهٔ امروزت قبلاً برای استریک ثبت شده بود."
+BOOK_ARCHIVED = "کتاب آرشیو شد و سابقه‌اش محفوظ موند."
+BOOK_PRIVATE_ONLY = "برای حفظ حریم خصوصی، کتابخانه رو در گفت‌وگوی خصوصی با ربات باز کن."
 
 ACCOUNT_DELETE_WARN = (
     "🗑 <b>حذف حساب</b>\n\n"
     "با حذف حساب، همه‌چیز برای همیشه پاک می‌شه:\n"
     "• استریک و رکوردت\n"
     "• فریزها و روزهای مطالعه\n"
-    "• یادآورها و حضورت در لیدربورد\n\n"
+    "• یادآورها و حضورت در لیدربورد\n"
+    "• کتاب‌ها و سابقهٔ صفحات مطالعه‌شده\n\n"
     "این کار برگشت‌پذیر نیست. فقط این نکته رو بدون که اطلاعات ممکنه تا وقتی بکاپ‌های قدیمی "
     "پاک بشن، توی همون بکاپ‌ها بمونن.\n\n"
     "مطمئنی ادامه بدی؟"
@@ -273,6 +290,82 @@ def home(
     return result
 
 
+def bookshelf(active: int, visible: int) -> str:
+    if visible == 0:
+        body = "هنوز کتابی به کتابخانه‌ات اضافه نکردی."
+    else:
+        body = "برای دیدن جزئیات یا ثبت مطالعه، یک کتاب رو انتخاب کن."
+    return (
+        "📚 <b>کتابخانهٔ من</b>\n\n"
+        f"در حال مطالعه: {fa(active)} از {fa(MAX_ACTIVE_BOOKS)}\n"
+        f"کتاب‌های نمایش‌داده‌شده: {fa(visible)}\n\n"
+        f"{body}"
+    )
+
+
+def book_added(title: str, total_pages: int) -> str:
+    return (
+        "کتاب اضافه شد ✅\n\n"
+        f"📖 <b>{escape(title)}</b>\n"
+        f"تعداد صفحات: {fa(total_pages)}"
+    )
+
+
+def book_detail(
+    title: str,
+    author: str | None,
+    pages_read: int,
+    total_pages: int,
+    status: str,
+) -> str:
+    author_line = f"✍️ {escape(author)}\n" if author else ""
+    status_label = "در حال مطالعه" if status == "reading" else "تمام‌شده"
+    remaining = max(0, total_pages - pages_read)
+    return (
+        f"📖 <b>{escape(title)}</b>\n"
+        f"{author_line}"
+        f"وضعیت: {status_label}\n\n"
+        f"پیشرفت: {fa(pages_read)} از {fa(total_pages)} صفحه "
+        f"({fa(progress_percent(pages_read, total_pages))}٪)\n"
+        f"باقی‌مانده: {fa(remaining)} صفحه"
+    )
+
+
+def book_ask_pages(title: str, remaining: int) -> str:
+    return (
+        f"امروز چند صفحه از <b>{escape(title)}</b> خوندی؟\n"
+        f"صفحات باقی‌مانده: {fa(remaining)}"
+    )
+
+
+def book_pages_over(remaining: int) -> str:
+    return f"این تعداد از صفحات باقی‌مانده بیشتره؛ حداکثر {fa(remaining)} صفحه وارد کن."
+
+
+def pages_logged(
+    title: str,
+    added: int,
+    pages_read: int,
+    total_pages: int,
+    finished: bool,
+    reading_message: str,
+) -> str:
+    finish_line = "\n🎉 کتاب رو تموم کردی!" if finished else ""
+    return (
+        f"برای <b>{escape(title)}</b>، {fa(added)} صفحه ثبت شد ✅\n"
+        f"پیشرفت: {fa(pages_read)} از {fa(total_pages)} صفحه "
+        f"({fa(progress_percent(pages_read, total_pages))}٪)"
+        f"{finish_line}\n\n{reading_message}"
+    )
+
+
+def book_archive_confirm(title: str) -> str:
+    return (
+        f"کتاب <b>{escape(title)}</b> آرشیو بشه؟\n\n"
+        "کتاب و همهٔ سابقه‌ها حفظ می‌شن، ولی در نسخهٔ فعلی امکان برگردوندنش از آرشیو نیست."
+    )
+
+
 def comeback_line(change, total_streak: int) -> str | None:
     if change is None:
         return None
@@ -412,6 +505,9 @@ def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> 
         f"{fa(stats['readers_7d'])} / {fa(stats['readers_30d'])}\n"
         f"📖 روزهای ثبت مطالعه در ۷/۳۰ روز: "
         f"{fa(stats['reading_days_7d'])} / {fa(stats['reading_days_30d'])}\n"
+        f"📚 کتاب‌های فعال/تمام‌شده: {fa(stats['active_books'])} / "
+        f"{fa(stats['finished_books'])}\n"
+        f"📄 صفحات ثبت‌شده در ۷ روز: {fa(stats['pages_7d'])}\n"
         f"🔁 بازگشت D1/D7/D30: {fa(stats['retention_d1'])}% / "
         f"{fa(stats['retention_d7'])}% / {fa(stats['retention_d30'])}%\n"
         f"🔥 دارای استریک: {fa(stats['users_with_streak'])} · "

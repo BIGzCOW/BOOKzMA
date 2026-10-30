@@ -42,7 +42,8 @@ git switch --track -c main origin/main
 
 ## تست محلی
 
-`dev_run.py` و `.env` خصوصی و local-only هستند؛ آن‌ها را در Git نگذار و token/proxy را در پیام یا log منتشر نکن.
+`dev_run.py` launcher مشترک و tracked پروژه است؛ تنظیمات خصوصی در `.env` می‌مانند و نباید در
+Git یا داخل launcher قرار بگیرند. token/proxy را در پیام یا log منتشر نکن.
 
 ```sh
 docker compose up -d db
@@ -51,7 +52,7 @@ alembic upgrade head
 PYTHONPATH=src python dev_run.py
 ```
 
-از bot token جداگانهٔ تست استفاده کن. `pgdata` volume پایدار است؛ DB را پاک یا recreate نکن. `docker compose up -d db` فقط دیتابیس را بالا می‌آورد و image بات را rebuild نمی‌کند. Migration را فقط وقتی `DATABASE_URL` به DB تست/محلی اشاره می‌کند اجرا کن. برنامهٔ Compose migration را در startup انجام می‌دهد؛ چون launcher محلی خصوصی است، اجرای خودکار migration توسط `dev_run.py` تأیید نشده است.
+از bot token جداگانهٔ تست استفاده کن. `pgdata` volume پایدار است؛ DB را پاک یا recreate نکن. `docker compose up -d db` فقط دیتابیس را بالا می‌آورد و image بات را rebuild نمی‌کند. Migration را فقط وقتی `DATABASE_URL` به DB تست/محلی اشاره می‌کند اجرا کن. lifespan مشترک FastAPI migration را در startup اجرا می‌کند؛ قرارداد launcher محلی و تنظیمات لازم در [LOCAL_DEV](LOCAL_DEV.md) آمده است.
 
 تست Docker لازم است وقتی Dockerfile، runtime dependencies، Compose یا خود image تغییر کرده باشد:
 

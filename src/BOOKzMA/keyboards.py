@@ -36,6 +36,7 @@ def home_kb(read_today: bool, mesbak_active: bool = False) -> InlineKeyboardMark
     read_text = "✅ امروز ثبت شد" if read_today else "📖 امروز خوندم"
     rows = [
         [_btn(read_text, "read")],
+        [_btn("📚 کتابخانهٔ من", "books")],
         [_btn("📊 خلاصهٔ هفتگی", "weekly")],
         [_btn("⏰ یادآورها", "rem"), _btn("🌍 منطقه زمانی", "tz")],
     ]
@@ -49,6 +50,7 @@ def home_kb(read_today: bool, mesbak_active: bool = False) -> InlineKeyboardMark
 def menu_kb(is_admin: bool = False) -> ReplyKeyboardMarkup:
     rows = [
         [KeyboardButton(text="🏠 خانه"), KeyboardButton(text="👤 پروفایل")],
+        [KeyboardButton(text="📚 کتابخانهٔ من")],
         [KeyboardButton(text="⏰ یادآورها"), KeyboardButton(text="🌍 منطقه زمانی")],
         [KeyboardButton(text="🤝 رفیق مطالعه")],
         [KeyboardButton(text="🪥 مسباک")],
@@ -57,6 +59,66 @@ def menu_kb(is_admin: bool = False) -> ReplyKeyboardMarkup:
     if is_admin:
         rows.append([KeyboardButton(text="⚙️ مدیریت ربات")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
+def bookshelf_kb(
+    items: list[tuple[int, str, str]],
+    *,
+    page: int,
+    has_previous: bool,
+    has_next: bool,
+    can_add: bool,
+) -> InlineKeyboardMarkup:
+    rows = [
+        [_btn(f"{'📖' if status == 'reading' else '✅'} {title[:32]}", f"book:open:{book_id}")]
+        for book_id, title, status in items
+    ]
+    if can_add:
+        rows.append([_btn("➕ افزودن کتاب", "book:add")])
+    pagination = []
+    if has_previous:
+        pagination.append(_btn("قبلی", f"books:p:{page - 1}"))
+    if has_next:
+        pagination.append(_btn("بعدی", f"books:p:{page + 1}"))
+    if pagination:
+        rows.append(pagination)
+    rows.append([_btn("🏠 منوی اصلی", "home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def books_cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[_btn("🔙 انصراف", "books")]])
+
+
+def book_author_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn("رد کردن نام نویسنده", "book:author_skip")],
+            [_btn("🔙 انصراف", "books")],
+        ]
+    )
+
+
+def book_detail_kb(book_id: int, status: str) -> InlineKeyboardMarkup:
+    rows = []
+    if status == "reading":
+        rows.append([_btn("📖 ثبت صفحات مطالعه‌شده", f"book:log:{book_id}")])
+    rows.extend(
+        [
+            [_btn("🗄 آرشیو کتاب", f"book:archive:{book_id}")],
+            [_btn("🔙 کتابخانهٔ من", "books")],
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def book_archive_confirm_kb(book_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn("بله، آرشیو شود", f"book:archive_go:{book_id}")],
+            [_btn("🔙 برگشت", f"book:open:{book_id}")],
+        ]
+    )
 
 
 def profile_kb(opt_out: bool, mesbak_active: bool = False) -> InlineKeyboardMarkup:
