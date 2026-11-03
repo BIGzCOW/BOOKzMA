@@ -252,6 +252,8 @@ def test_progress_finishing_ownership_archive_and_admin_kpis():
                     session, owner_id, offset=0, limit=8, archived=True
                 )
                 assert len(archived) == 1 and archived[0].book.id == book_id
+                archived_stats = await analytics.dashboard(session, reading_day)
+                assert archived_stats["archived_books"] >= 1
                 archived_at = progress.book.archived_at
                 assert await books_repo.restore(session, owner_id, book_id) is True
                 restored = await books_repo.get_progress(session, owner_id, book_id)
@@ -265,7 +267,6 @@ def test_progress_finishing_ownership_archive_and_admin_kpis():
                 assert await books_repo.restore(session, owner_id, book_id) is False
             async with pool() as session:
                 stats = await analytics.dashboard(session, reading_day)
-                assert stats["archived_books"] >= 1
                 assert stats["books_added_7d"] >= 1
                 assert stats["books_archived_7d"] >= 1
                 assert stats["books_restored_7d"] >= 1

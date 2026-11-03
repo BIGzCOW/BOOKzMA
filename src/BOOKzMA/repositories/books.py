@@ -158,7 +158,15 @@ async def shelf_summary(
         .order_by(UserBook.created_at.desc(), UserBook.id.desc())
         .limit(title_limit)
     )
-    return ShelfSummary(*counts, reading_titles=tuple(titles.all()))
+    return ShelfSummary(
+        total_count=counts[0],
+        archived_count=counts[1],
+        reading_count=counts[4],
+        finished_count=counts[2],
+        planned_count=counts[3],
+        unstarted_count=counts[5],
+        reading_titles=tuple(titles.all()),
+    )
 
 
 async def list_visible(
