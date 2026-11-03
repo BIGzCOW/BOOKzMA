@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 
 import pytest
-from aiogram.types import CallbackQuery, Chat, Message, User
+from aiogram.types import CallbackQuery, Chat, InlineQuery, Message, User
 
 from BOOKzMA.middlewares.rate_limit import RateLimitMiddleware
 from BOOKzMA.texts import RATE_LIMITED
@@ -53,6 +53,21 @@ def _callback(monkeypatch):
         from_user=User(id=1, is_bot=False, first_name="U"),
         chat_instance="chat",
         data="menu:home",
+    ), answers
+
+
+def _inline_query(monkeypatch):
+    answers = []
+
+    async def answer(_self, results, **kwargs):
+        answers.append((results, kwargs))
+
+    monkeypatch.setattr(InlineQuery, "answer", answer)
+    return InlineQuery(
+        id="inline-query",
+        from_user=User(id=1, is_bot=False, first_name="U"),
+        query="book",
+        offset="",
     ), answers
 
 
@@ -111,6 +126,18 @@ def test_blocked_callback_gets_toast_and_is_swallowed(clock, monkeypatch):
     assert result is None
     assert calls == []
     assert answers == [RATE_LIMITED]
+
+
+def test_blocked_inline_query_gets_empty_private_answer(clock, monkeypatch):
+    middleware = RateLimitMiddleware(max_updates=1, window_seconds=10)
+    event, answers = _inline_query(monkeypatch)
+    assert _run(middleware, event, 1) == ("handled", [True])
+
+    result, calls = _run(middleware, event, 1)
+
+    assert result is None
+    assert calls == []
+    assert answers == [([], {"cache_time": 1, "is_personal": True})]
 
 
 def test_admin_is_exempt(clock, monkeypatch):

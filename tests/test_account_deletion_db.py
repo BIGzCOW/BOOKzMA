@@ -14,6 +14,9 @@ from BOOKzMA.db.models import (
     ReadingLog,
     Reminder,
     StreakFreeze,
+    SupportBlock,
+    SupportEvent,
+    SupportTicket,
     User,
     UserBook,
 )
@@ -50,6 +53,20 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                         source_message_id=55,
                     )
                 )
+                ticket = SupportTicket(user_id=user_id)
+                session.add(ticket)
+                await session.flush()
+                session.add_all(
+                    [
+                        SupportEvent(
+                            ticket_id=ticket.id,
+                            actor_id=user_id,
+                            kind="user_message",
+                        ),
+                        SupportBlock(user_id=user_id, admin_id=user_id + 1),
+                    ]
+                )
+                ticket_id = ticket.id
                 book_id = book.id
 
             async with session_pool.begin() as session:
@@ -63,6 +80,9 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                 assert await _count(session, Reminder, user_id) == 0
                 assert await _count(session, ActivityDay, user_id) == 0
                 assert await _count(session, UserBook, user_id) == 0
+                assert await _count(session, SupportTicket, ticket_id) == 0
+                assert await _count(session, SupportEvent, ticket_id) == 0
+                assert await _count(session, SupportBlock, user_id) == 0
                 assert await session.scalar(
                     select(func.count()).select_from(PageLog).where(
                         PageLog.user_book_id == book_id

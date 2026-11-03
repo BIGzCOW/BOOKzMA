@@ -50,3 +50,7 @@ def test_polling_does_not_override_uvicorn_signal_handlers(monkeypatch):
     assert polling_options == {"handle_signals": False}
     assert len(isolation) == 1
     assert isinstance(isolation[0], SimpleEventIsolation)
+
+
+def test_user_command_menu_exposes_only_start():
+    assert [command.command for command in bot_module.COMMANDS] == ["start"]

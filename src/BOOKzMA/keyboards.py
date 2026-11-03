@@ -1,3 +1,4 @@
+from aiogram.enums import ButtonStyle
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -13,10 +14,66 @@ from BOOKzMA.constants import (
     PRESET_TIMES,
     TIMEZONES,
 )
+from BOOKzMA.services.catalog_text import strip_channel_handles
 
 
-def _btn(text: str, data: str) -> InlineKeyboardButton:
-    return InlineKeyboardButton(text=text, callback_data=data)
+def _btn(
+    text: str, data: str, style: ButtonStyle | None = None
+) -> InlineKeyboardButton:
+    danger_prefixes = (
+        "account_del:go",
+        "book:archive",
+        "book:archive_go:",
+        "broadcast:cancel",
+        "buddy:end:",
+        "admin:restore_ready:",
+        "admin:restore_ask:",
+        "mesbak:buddy:random:leave",
+        "mesbak:buddy:end:",
+        "mesbak:challenge:cancel",
+        "mesbak:exit",
+        "rem_del:",
+        "support:block:",
+    )
+    success_prefixes = (
+        "account_restore",
+        "book:add",
+        "book:author_skip",
+        "book:log:",
+        "book:restore:",
+        "book:set_pages:",
+        "broadcast:start:",
+        "catalog:add:",
+        "catalog:download:",
+        "check_join",
+        "mesbak:done:",
+        "mesbak:buddy:invite",
+        "mesbak:buddy:nudge",
+        "mesbak:buddy:random:join",
+        "mesbak:challenge:start:",
+        "mesbak:settime:",
+        "mesbak:customtime:",
+        "mesbak:join:",
+        "onb:",
+        "read",
+        "support:continue:",
+        "support:reply:",
+        "support:ticket",
+        "admin:backup_now",
+        "buddy:join",
+    )
+    if style is None:
+        if data.startswith(danger_prefixes):
+            style = ButtonStyle.DANGER
+        elif data.startswith(success_prefixes):
+            style = ButtonStyle.SUCCESS
+        else:
+            style = ButtonStyle.PRIMARY
+    return InlineKeyboardButton(text=text, callback_data=data, style=style.value)
+
+
+def _link_btn(text: str, url: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=text, url=url)
 
 
 def _chunk(items: list, size: int) -> list[list]:
@@ -25,7 +82,7 @@ def _chunk(items: list, size: int) -> list[list]:
 
 def join_kb(missing: list[str]) -> InlineKeyboardMarkup:
     rows = [
-        [InlineKeyboardButton(text=f"عضویت در {ch}", url=f"https://t.me/{ch.lstrip('@')}")]
+        [_link_btn(f"عضویت در {ch}", f"https://t.me/{ch.lstrip('@')}")]
         for ch in missing
     ]
     rows.append([_btn("✅ عضو شدم", "check_join")])
@@ -36,25 +93,22 @@ def home_kb(read_today: bool, mesbak_active: bool = False) -> InlineKeyboardMark
     read_text = "✅ امروز ثبت شد" if read_today else "📖 امروز خوندم"
     rows = [
         [_btn(read_text, "read")],
-        [_btn("📚 کتابخانهٔ من", "books")],
-        [_btn("📊 خلاصهٔ هفتگی", "weekly")],
+        [_btn("📚 کتابخانه من", "books"), _btn("📊 خلاصهٔ هفتگی", "weekly")],
         [_btn("⏰ یادآورها", "rem"), _btn("🌍 منطقه زمانی", "tz")],
+        [_btn("💬 پشتیبانی / پیشنهاد", "support")],
     ]
     if mesbak_active:
         rows.append([_btn("🪥 استریک مسباک", "mesbak:open")])
-    return InlineKeyboardMarkup(
-        inline_keyboard=rows
-    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def menu_kb(is_admin: bool = False) -> ReplyKeyboardMarkup:
     rows = [
         [KeyboardButton(text="🏠 خانه"), KeyboardButton(text="👤 پروفایل")],
-        [KeyboardButton(text="📚 کتابخانهٔ من")],
+        [KeyboardButton(text="📚 کتابخانه من"), KeyboardButton(text="📊 خلاصهٔ هفتگی")],
         [KeyboardButton(text="⏰ یادآورها"), KeyboardButton(text="🌍 منطقه زمانی")],
-        [KeyboardButton(text="🤝 رفیق مطالعه")],
-        [KeyboardButton(text="🪥 مسباک")],
-        [KeyboardButton(text="💚 حمایت از پروژه")],
+        [KeyboardButton(text="🤝 رفیق مطالعه"), KeyboardButton(text="💬 پشتیبانی")],
+        [KeyboardButton(text="🪥 مسباک"), KeyboardButton(text="💚 حمایت از پروژه")],
     ]
     if is_admin:
         rows.append([KeyboardButton(text="⚙️ مدیریت ربات")])
@@ -68,18 +122,35 @@ def bookshelf_kb(
     has_previous: bool,
     has_next: bool,
     can_add: bool,
+    archived: bool = False,
+    archived_count: int = 0,
 ) -> InlineKeyboardMarkup:
     rows = [
-        [_btn(f"{'📖' if status == 'reading' else '✅'} {title[:32]}", f"book:open:{book_id}")]
+        [
+            _btn(
+                f"{'📖' if status == 'reading' else '🕒' if status == 'planned' else '✅'} "
+                f"{strip_channel_handles(title)[:32]}",
+                f"book:open:{book_id}",
+            )
+        ]
         for book_id, title, status in items
     ]
-    if can_add:
-        rows.append([_btn("➕ افزودن کتاب", "book:add")])
+    if archived:
+        rows.append([_btn("📚 کتاب‌های من", "books")])
+    else:
+        if can_add:
+            rows.append([_btn("➕ افزودن کتاب", "book:add")])
+        rows.append([_btn("🔎 جست‌وجو در کانال کتاب", "catalog:search")])
+        rows.append([_btn(f"🗄 آرشیو کتاب‌ها ({archived_count})", "books:archive")])
     pagination = []
     if has_previous:
-        pagination.append(_btn("قبلی", f"books:p:{page - 1}"))
+        pagination.append(
+            _btn("قبلی", f"books:archive:p:{page - 1}" if archived else f"books:p:{page - 1}")
+        )
     if has_next:
-        pagination.append(_btn("بعدی", f"books:p:{page + 1}"))
+        pagination.append(
+            _btn("بعدی", f"books:archive:p:{page + 1}" if archived else f"books:p:{page + 1}")
+        )
     if pagination:
         rows.append(pagination)
     rows.append([_btn("🏠 منوی اصلی", "home")])
@@ -100,15 +171,74 @@ def book_author_kb() -> InlineKeyboardMarkup:
 
 
 def book_detail_kb(book_id: int, status: str) -> InlineKeyboardMarkup:
+    return book_detail_with_pages_kb(book_id, status, has_page_count=True)
+
+
+def book_detail_with_pages_kb(
+    book_id: int,
+    status: str,
+    *,
+    has_page_count: bool,
+    catalog_message_id: int | None = None,
+    catalog_url: str | None = None,
+) -> InlineKeyboardMarkup:
     rows = []
-    if status == "reading":
-        rows.append([_btn("📖 ثبت صفحات مطالعه‌شده", f"book:log:{book_id}")])
-    rows.extend(
+    if status == "archived":
+        rows.append([_btn("↩️ بازگردانی به کتابخانه", f"book:restore:{book_id}")])
+    elif status in {"planned", "reading", "finished"}:
+        if status == "reading" and has_page_count:
+            rows.append([_btn("📖 ثبت صفحات مطالعه‌شده", f"book:log:{book_id}")])
+        elif status == "planned":
+            rows.append([_btn("📄 تعیین تعداد صفحات", f"book:set_pages:{book_id}")])
+        rows.append([_btn("🗄 آرشیو کتاب", f"book:archive:{book_id}")])
+    rows.append([_btn("🔙 کتابخانه من", "books")])
+    if catalog_message_id is not None:
+        rows.insert(0, [_btn("📥 دریافت فایل", f"catalog:download:{catalog_message_id}")])
+    if catalog_url is not None:
+        rows.insert(
+            1 if catalog_message_id is not None else 0,
+            [_link_btn("🔗 دیدن پست کانال", catalog_url)],
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def catalog_search_cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[_btn("🔙 کتابخانه من", "books")]])
+
+
+def catalog_results_kb(
+    items: list[tuple[int, str]], *, offset: int, has_previous: bool, has_next: bool
+) -> InlineKeyboardMarkup:
+    rows = [
         [
-            [_btn("🗄 آرشیو کتاب", f"book:archive:{book_id}")],
-            [_btn("🔙 کتابخانهٔ من", "books")],
+            _btn(
+                f"📚 {strip_channel_handles(file_name)[:42]}",
+                f"catalog:open:{message_id}",
+            )
         ]
-    )
+        for message_id, file_name in items
+    ]
+    pagination = []
+    if has_previous:
+        pagination.append(_btn("قبلی", f"catalog:p:{max(0, offset - 6)}"))
+    if has_next:
+        pagination.append(_btn("بعدی", f"catalog:p:{offset + 6}"))
+    if pagination:
+        rows.append(pagination)
+    rows.append([_btn("🔎 جست‌وجوی تازه", "catalog:search")])
+    rows.append([_btn("📚 کتابخانه من", "books")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def catalog_entry_kb(
+    message_id: int, channel_url: str, bot_file_id: str | None
+) -> InlineKeyboardMarkup:
+    rows = [
+        [_btn("➕ افزودن به کتابخانه من", f"catalog:add:{message_id}")],
+        [_btn("📥 دریافت فایل", f"catalog:download:{message_id}")],
+        [_link_btn("🔗 دیدن پست کانال", channel_url)],
+    ]
+    rows.append([_btn("🔙 نتیجه‌های جست‌وجو", "catalog:back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -124,7 +254,13 @@ def book_archive_confirm_kb(book_id: int) -> InlineKeyboardMarkup:
 def profile_kb(opt_out: bool, mesbak_active: bool = False) -> InlineKeyboardMarkup:
     toggle_text = "➖ خروج از لیدربورد" if not opt_out else "➕ حضور در لیدربورد"
     rows = [
-        [_btn(toggle_text, "leaderboard:toggle")],
+        [
+            _btn(
+                toggle_text,
+                "leaderboard:toggle",
+                ButtonStyle.SUCCESS if opt_out else ButtonStyle.DANGER,
+            )
+        ],
         [_btn("🏅 لیدربورد استریک", "leaderboard")],
     ]
     if mesbak_active:
@@ -169,13 +305,38 @@ def restore_kb() -> InlineKeyboardMarkup:
 
 
 def support_kb(github_url: str, support_url: str) -> InlineKeyboardMarkup:
-    rows = []
+    rows = [[_btn("✉️ ارسال پیام به پشتیبانی", "support:ticket")]]
     if github_url:
-        rows.append([InlineKeyboardButton(text="⭐ گیت‌هاب پروژه", url=github_url)])
+        rows.append([_link_btn("⭐ گیت‌هاب پروژه", github_url)])
     if support_url:
-        rows.append([InlineKeyboardButton(text="💌 حمایت مالی", url=support_url)])
+        rows.append([_link_btn("💌 حمایت مالی", support_url)])
     rows.append([_btn("🏠 منوی اصلی", "home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def support_cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[_btn("لغو", "home")]])
+
+
+def support_reply_kb(ticket_id: int, user_id: int, blocked: bool) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn("↩️ پاسخ به کاربر", f"support:reply:{ticket_id}")],
+            [
+                _btn(
+                    "🔓 رفع مسدودی" if blocked else "⛔ مسدودکردن کاربر",
+                    f"support:block:{ticket_id}",
+                    ButtonStyle.SUCCESS if blocked else ButtonStyle.DANGER,
+                )
+            ],
+        ]
+    )
+
+
+def support_user_reply_kb(ticket_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[_btn("↩️ پاسخ به پشتیبانی", f"support:continue:{ticket_id}")]]
+    )
 
 
 def admin_kb() -> InlineKeyboardMarkup:
@@ -331,7 +492,13 @@ def mesbak_league_kb(opted_in: bool) -> InlineKeyboardMarkup:
     label = "➖ خروج از لیگ" if opted_in else "➕ عضویت در لیگ"
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [_btn(label, "mesbak:league:toggle")],
+            [
+                _btn(
+                    label,
+                    "mesbak:league:toggle",
+                    ButtonStyle.SUCCESS if not opted_in else ButtonStyle.DANGER,
+                )
+            ],
             [_btn("🔙 برگشت", "mesbak:open")],
         ]
     )
@@ -340,7 +507,7 @@ def mesbak_league_kb(opted_in: bool) -> InlineKeyboardMarkup:
 def mesbak_buddy_invite_kb(share_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📨 فرستادن برای دوست", url=share_url)],
+            [_link_btn("📨 فرستادن برای دوست", share_url)],
             [_btn("🔙 برگشت", "mesbak:buddies")],
         ]
     )
@@ -441,7 +608,7 @@ def buddy_invite_kb(deep_link: str) -> InlineKeyboardMarkup:
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📨 فرستادن برای دوست", url=share_url)],
+            [_link_btn("📨 فرستادن برای دوست", share_url)],
             [_btn("🔙 برگشت", "home")],
         ]
     )

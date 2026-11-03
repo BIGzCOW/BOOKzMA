@@ -1,7 +1,10 @@
 import asyncio
+from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
-from aiogram.types import CallbackQuery, User
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import CallbackQuery, Chat, Message, User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from BOOKzMA import texts
@@ -211,6 +214,120 @@ def test_middleware_intercepts_deleted_user_before_handlers(monkeypatch):
             {"event_from_user": alive.from_user, "bot": object(), "session": AsyncSession()},
         )
         assert handled == [True]
+
+    asyncio.run(run_test())
+
+
+def test_middleware_skips_direct_messages_channel_updates(monkeypatch):
+    async def run_test():
+        is_deleted = AsyncMock(side_effect=AssertionError("direct messages must be dropped first"))
+        membership_check = AsyncMock(
+            side_effect=AssertionError("direct messages must skip membership checks")
+        )
+        monkeypatch.setattr(users, "is_deleted", is_deleted)
+        monkeypatch.setattr(
+            "BOOKzMA.middlewares.membership.missing_channels", membership_check
+        )
+        answer = AsyncMock()
+        monkeypatch.setattr(Message, "answer", answer)
+        middleware = MembershipMiddleware()
+        handled = AsyncMock()
+
+        event = Message(
+            message_id=1,
+            date=datetime(2026, 11, 3, tzinfo=timezone.utc),
+            chat=Chat(id=-100123, type="channel", is_direct_messages=True),
+            from_user=User(id=777, is_bot=False, first_name="Ali"),
+            text="message from channel DM",
+        )
+        result = await middleware(
+            handled,
+            event,
+            {"event_from_user": event.from_user, "bot": object(), "session": object()},
+        )
+        assert result is None
+        handled.assert_not_awaited()
+        answer.assert_not_awaited()
+        is_deleted.assert_not_awaited()
+        membership_check.assert_not_awaited()
+
+    asyncio.run(run_test())
+
+
+def test_middleware_asks_for_join_for_private_non_member(monkeypatch):
+    async def run_test():
+        answers = []
+        monkeypatch.setattr(users, "is_deleted", AsyncMock(return_value=False))
+        monkeypatch.setattr("BOOKzMA.middlewares.membership.REQUIRED_CHANNELS", ("required",))
+
+        async def fake_answer(self, text=None, **kwargs):
+            answers.append((text, kwargs))
+
+        monkeypatch.setattr(Message, "answer", fake_answer)
+        middleware = MembershipMiddleware()
+
+        async def handler(_event, _data):
+            raise AssertionError("handler should not run for non-member private user")
+
+        message = Message(
+            message_id=1,
+            date=datetime(2026, 11, 3, tzinfo=timezone.utc),
+            chat=Chat(id=777, type="private"),
+            from_user=User(id=777, is_bot=False, first_name="Ali"),
+            text="hello",
+        )
+        await middleware(
+            handler,
+            message,
+            {
+                "event_from_user": message.from_user,
+                "bot": SimpleNamespace(
+                    get_chat_member=AsyncMock(return_value=SimpleNamespace(status="left"))
+                ),
+                "session": object(),
+            },
+        )
+        assert answers and answers[0][0] == texts.JOIN_GATE
+
+    asyncio.run(run_test())
+
+
+def test_middleware_ignores_answer_errors_without_traceback(monkeypatch, caplog):
+    async def run_test():
+        monkeypatch.setattr(users, "is_deleted", AsyncMock(return_value=False))
+        monkeypatch.setattr("BOOKzMA.middlewares.membership.REQUIRED_CHANNELS", ("required",))
+        middleware = MembershipMiddleware()
+
+        async def fake_answer(*args, **kwargs):
+            raise TelegramBadRequest(method=None, message="Bad Request")
+
+        async def handler(_event, _data):
+            raise AssertionError("join-gated updates must not reach handlers")
+
+        monkeypatch.setattr(Message, "answer", fake_answer)
+        message = Message(
+            message_id=1,
+            date=datetime(2026, 11, 3, tzinfo=timezone.utc),
+            chat=Chat(id=777, type="private"),
+            from_user=User(id=777, is_bot=False, first_name="Ali"),
+            text="hello",
+        )
+        result = await middleware(
+            handler,
+            message,
+            {
+                "event_from_user": message.from_user,
+                "bot": SimpleNamespace(
+                    get_chat_member=AsyncMock(return_value=SimpleNamespace(status="left"))
+                ),
+                "session": object(),
+            },
+        )
+        assert result is None
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelname == "WARNING"
+        assert caplog.records[0].exc_info is None
+        assert "\n" not in caplog.records[0].message
 
     asyncio.run(run_test())
 

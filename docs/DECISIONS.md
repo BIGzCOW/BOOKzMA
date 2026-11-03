@@ -124,17 +124,31 @@ Each entry records current intent, not a claim that future work is implemented.
 
 **Revisit when:** Owners request a separate education preference, shared/group challenges, or a second client requiring API support.
 
+## D-13 — Main-Channel Book Catalog Mirror
+
+**Status:** Implementing (B-02).
+
+**Context:** The external Telethon worker continuously writes a 1.88GB SQLite database in `DELETE` journal mode. Its `messages` table holds about 674K rows across channels; `channel_id` is an internal SQLite ID. The owner wants search only for the public main `BOOKzMA` channel and has authorized the bot to deliver its files.
+
+**Decision:** Mount the source directory into the bot container read-only, with host path and in-container DB path configured through environment variables. A background task performs an initial sync and then daily sync at a configured UTC hour. It reads short batches off the event loop, selects only the configured channel with `in_main=1`, excludes rows flagged as duplicates, and copies searchable metadata only into PostgreSQL. It never reads `raw_data`, other channels, SQLite settings, or file bytes. A PostgreSQL checkpoint advances in the same transaction as each upsert batch, allowing restart-safe resume. User searches query PostgreSQL, never the active SQLite writer. Private delivery uses `copyMessage`; Inline uses channel-post links for historic entries and cached document results only when this bot has a Bot API `file_id`.
+
+**Why:** SQLite DELETE journaling makes long-lived readers a risk to the separate writer. A metadata mirror isolates search latency, supports indexed Persian/Arabic full-text search, and avoids file download/re-upload. The source catalog is append-oriented; edits and deletions below the checkpoint are not reconciled in this version.
+
+**Alternatives considered:** Query the live SQLite database on every search (rejected: couples user latency and DB locks to the writer); copy the full SQLite DB or file payloads (rejected: duplicates large data and adds storage/transfer cost); use only channel links (rejected for private bot search because the owner wants direct retrieval).
+
+**Revisit when:** Source posts can be edited/deleted, multiple channels are required, or source sync volume/latency changes materially.
+
 ## Open Decisions (Owner Only)
 
 - Exact rules for weekly reading targets and rest days.
 - Calendar basis: Persian (Jalali) dates and Saturday-start weeks (S-06), and the day boundary for readers who log after midnight (S-10).
 - Definition of an "active user" for analytics and admin KPIs (A-05).
-- Book-search sources and copyright/licensing constraints, including which channel content may be indexed (B-01, B-02).
+- Book-search sources and copyright/licensing constraints for future external sources (B-01).
 - Social privacy defaults: what friends may see and whether visibility is opt-in (C-02, L-03).
 - Reward model, anti-abuse rules, and whether payments (for example Telegram Stars) will exist and for which digital goods, under a free-core principle (G-08, C-05, M-01, M-02).
-- Whether to add an in-bot ticket system beyond the configured support contact (P-01).
 - Backup file encryption and further off-site/retention policy beyond D-09 (L-02).
 - Whether to add a `MenuButton` beyond scoped commands and the persistent reply keyboard, and the final combination of command menu and reply keyboard at `/start` (N-01, U-01).
 - Whether a web admin panel is built and up to which tier (W-01..W-03), tied to revisiting the FastAPI decision D-01.
 - Brand tone of voice: how casual versus formal (N-07).
 - Exact policy for what a non-existent local reminder time does during DST: current implementation skips that occurrence on that date.
+- Host path for the channel SQLite directory, daily UTC sync hour, and whether future Bot API file IDs should be emitted directly in Inline Mode.

@@ -28,6 +28,8 @@ The admin backup and restore actions also require the host PostgreSQL client too
 
 در `.env` از bot token جداگانهٔ تست استفاده کن، `TELEGRAM_PROXY` را با آدرس proxy خودت تنظیم کن، و `DATABASE_URL` را به `127.0.0.1:5433` وصل کن؛ hostname `db` فقط داخل شبکهٔ Docker resolve می‌شود. سپس با فرمان‌های بالا فقط PostgreSQL را در Docker بالا بیاور، کانتینر bot را متوقف کن و برنامه را از میزبان اجرا کن. launcher همان app را اجرا می‌کند و migration را هنگام startup انجام می‌دهد. اگر `.env` هنوز placeholderهای `.env.sample` را دارد، پیش از اجرا آن‌ها را با مقادیر local/test جایگزین کن.
 
+If startup succeeds but book browsing raises `column user_books.restored_at does not exist`, restart the current app so Alembic can apply revision `0020`. Confirm the configured local database with `alembic current`; never point this check or migration at production. Revision `0020` repairs the `page_count_set_at` and `restored_at` columns even when the database was already stamped at `0019`.
+
 Before starting, ensure `DATABASE_URL` targets the local Compose database and `POSTGRES_PASSWORD` matches that database. Never use the production bot token locally. Do not run the Compose bot and local launcher simultaneously with the same token; Telegram permits only one long-polling consumer per bot. `dev_run.py` has no embedded credentials; configure a test bot token and optional proxy through environment settings.
 
 Use a separate test bot. Do not poll the same token from both local and production instances. The test bot must have the channel permissions required by the configured membership gate. Do not expose private token or proxy values in logs or issue reports.

@@ -226,7 +226,7 @@ def create_app(
     run_migrations: bool = True,
     bot_session: BaseSession | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="BOOKzMA API", version="1.2.1", lifespan=_lifespan)
+    app = FastAPI(title="BOOKzMA API", version="1.3.0", lifespan=_lifespan)
     app.state.settings = settings or Settings()
     app.state.run_bot = run_bot
     app.state.run_migrations = run_migrations

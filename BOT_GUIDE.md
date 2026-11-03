@@ -1,10 +1,11 @@
+Admin analytics count starts and UTC daily interactions from deployment onward, and report reading logs separately. A user who enters through `/mesbak` without `/start` is also recorded as a starter. The dashboard also reports onboarding completions, streak-at-risk alerts, comeback users, badge holders, active/total study-buddy pairs, deleted accounts, active/finished/archived personal books, books added/archived and page-count changes in seven days, page sessions/pages logged in seven days, open/new support tickets, user messages/admin replies and blocked users, plus D1/D7/D30 return rates for sufficiently observed cohorts.
 # Bot and API Guide (Current)
 
 This guide records behavior verified in `src/BOOKzMA/`, migrations, and configuration. See [ARCHITECTURE.md](ARCHITECTURE.md) for runtime topology and [docs/LOCAL_DEV.md](docs/LOCAL_DEV.md) for the local developer launcher.
 
 ## Commands and Bot Interface
 
-`bot.py` registers `/start`, `/reminders`, `/timezone`, `/profile`, `/mesbak`, and `/support` for all users; `/mesbak` remains a compatibility alias. Configured admins also receive `/admin` in their chat command scope. The persistent Persian reply keyboard includes `📚 کتابخانهٔ من`, `🤝 رفیق مطالعه`, and `🪥 مسباک`; contextual flows continue to use inline keyboards. Admin entry points are checked against `ADMIN_TELEGRAM_IDS` in handlers, independently of menu visibility.
+`bot.py` exposes only `/start` in the public Telegram command menu; other existing commands remain callable for compatibility and the reply keyboard remains the primary navigation. Configured admins see `/start` and `/admin` in their private command scope. The persistent Persian reply keyboard includes `📚 کتابخانه من`, `🤝 رفیق مطالعه`, and `🪥 مسباک`; contextual flows continue to use inline keyboards. Existing `📚 کتابخانهٔ من` messages remain accepted for compatibility. Callback buttons use Telegram's success, danger, and primary styles; URL buttons omit `style` and use the Telegram client's default link appearance. Admin entry points are checked against `ADMIN_TELEGRAM_IDS` in handlers, independently of menu visibility.
 
 `/start` retains the optional onboarding, returning-reader welcome, and study-buddy invite flow. Its first-run screen has a direct button to the independent Mesbak section. Buddy invitations use one-time `mesbakbuddy_<token>` deep links. Users can also open the section through `/mesbak` or the reply keyboard without completing reading onboarding.
 
@@ -19,10 +20,20 @@ Callback payloads implemented in handlers/keyboards:
 | `read` | Record today's reading idempotently; after a new reading, offer an optional nudge only when an eligible buddy has not read today |
 | `weekly` | Show seven-day summary |
 | `books` / `books:p:<page>` | Open or paginate the current user's non-archived personal books |
+| `books:archive` / `books:archive:p:<page>` | View and paginate the current user's archived books |
+| `catalog:search` / `catalog:p:<offset>` | Search the main-channel book catalog privately and paginate results |
+| `catalog:open:<message_id>` / `catalog:back` | Show a catalog result or return to the last search |
+| `catalog:add:<message_id>` / `catalog:download:<message_id>` | Add a result to the personal library or copy its channel post to the user |
 | `book:add` / `book:author_skip` | Start manual book creation or skip its optional author |
 | `book:open:<id>` | Show an owned book's page progress |
 | `book:log:<id>` | Request pages read for an owned active book |
+| `book:set_pages:<id>` | Set the page count of an active catalog book that was added without one |
 | `book:archive:<id>` / `book:archive_go:<id>` | Confirm and archive an owned book without deleting its history |
+| `book:restore:<id>` | Restore an owned archived book to its previous inferred status |
+| `support:ticket` | Start a private support message; the bot forwards it to configured admins |
+| `support:continue:<ticket_id>` | Continue the user's open support ticket |
+| `support:reply:<ticket_id>` | Admin-only reply flow for an open ticket |
+| `support:block:<ticket_id>` | Admin-only toggle to block/unblock that ticket's user |
 | `rem` | Open reminder management |
 | `rem_add:<HHMM>` | Add one of the configured preset times |
 | `rem_del:<id>` | Delete the current user's reminder |
@@ -30,7 +41,7 @@ Callback payloads implemented in handlers/keyboards:
 | `tz` | Show timezone choices |
 | `tz_set:<index>` | Set one of the configured timezone choices |
 | `leaderboard:toggle` | Toggle the user's public leaderboard presence |
-| `leaderboard` | Show the current-streak leaderboard (display names only) |
+| `leaderboard` | Show the top 25 current reading streaks (display names only) |
 | `mesbak:open` | Open the optional independent Mesbak section |
 | `mesbak:join:<goal>` | Join with a daily goal from 1 to 5 and default reminder times |
 | `mesbak:exit` | Leave the section, stop reminders and future cohort delivery, and close social opt-ins |
@@ -39,7 +50,7 @@ Callback payloads implemented in handlers/keyboards:
 | `mesbak:time:<slot>` / `mesbak:settime:<slot>:<HHMM>` | View or change one occurrence reminder |
 | `mesbak:weekly` / `mesbak:monthly` | Show 7-day or 30-day completion and streak reports |
 | `mesbak:challenge:start:<7|30>` | Start one personal consecutive-day challenge |
-| `mesbak:league` / `mesbak:league:toggle` | View or opt in/out of the Mesbak-only weekly league |
+| `mesbak:league` / `mesbak:league:toggle` | View the top 25 members or opt in/out of the Mesbak-only weekly league |
 | `mesbak:buddy:invite` / `mesbak:buddy:open:<id>` / `mesbak:buddy:nudge:all` / `mesbak:buddy:nudge:<id>` / `mesbak:buddy:end:<id>` | Invite, open one buddy's screen, nudge all incomplete buddies, nudge, or end a separate Mesbak buddy pair |
 | `mesbak:buddy:random:join` / `mesbak:buddy:random:leave` | Join or leave the anonymous FIFO Mesbak matching queue; users may hold several buddies at once, and matching never pairs two users who already have an active pair |
 | `account_del:start` | Start the account-deletion wizard from the profile |
@@ -69,9 +80,15 @@ Callback payloads implemented in handlers/keyboards:
 | `broadcast:status:<id>` | Show counts for an owned campaign |
 | `broadcast:cancel:<id>` | Cancel an owned campaign |
 
-FSM states include `handlers.books.AddBook.waiting_for_title/waiting_for_author/waiting_for_total_pages`, `handlers.books.LogPages.waiting_for_pages`, `handlers.reminders.AddTime.waiting`, the Mesbak reminder-time state, `handlers.admin.NewBroadcast.waiting_for_content/waiting_for_link`, `handlers.admin.BackupRestore.waiting_for_confirm`, and `handlers.account.DeleteAccount.waiting_word`; FSM storage remains in-memory. A restart discards an unfinished book form without persisting partial data. The existing onboarding flow remains stateless callback-driven and needs no FSM state. Arbitrary reminder times are parsed as 24-hour `HH[:MM]` with Persian or Arabic digits accepted.
+FSM states include `handlers.books.AddBook.waiting_for_title/waiting_for_author/waiting_for_total_pages`, `handlers.books.LogPages.waiting_for_pages`, `handlers.books.SetBookPages.waiting_for_total_pages`, `handlers.catalog.SearchCatalog.waiting_for_query`, `handlers.reminders.AddTime.waiting`, the Mesbak reminder-time state, `handlers.admin.NewBroadcast.waiting_for_content/waiting_for_link`, `handlers.admin.BackupRestore.waiting_for_confirm`, and `handlers.account.DeleteAccount.waiting_word`; FSM storage remains in-memory. A restart discards an unfinished book form without persisting partial data. The existing onboarding flow remains stateless callback-driven and needs no FSM state. Arbitrary reminder times are parsed as 24-hour `HH[:MM]` with Persian or Arabic digits accepted.
 
-Personal-library menus, forms and callbacks are private-chat only. Group and inline callbacks receive a neutral private-chat notice, without querying or rendering book data. Existing menu buttons and commands take precedence over book inputs; navigating to another screen discards the pending book form, including its selected book ID. Unknown slash commands are not accepted as book titles or authors. Per-user/chat FSM event isolation ensures a concurrent or replayed final form message cannot create a second book after successful submission; a restart loses the form rather than resubmitting it. This is a single-process FSM guarantee, not durable deduplication for arbitrary future clients.
+Personal-library menus, forms, and personal-book callbacks are private-chat only. The shelf paginates at eight books per page and summarizes total, reading, finished, planned, unstarted, and archived counts; a book counts as reading in that summary only after at least one page is logged. Up to five started-book titles are shown. Archived books remain available from the paginated archive shelf; restore returns finished books to `finished`, catalog-planned books with no page count to `planned`, and other books to `reading`, preserving page logs and `archived_at` history. There is no cap on a user's total or active books. Catalog Inline Mode is a separate group-capable sharing flow and returns only a link or cached Bot API document. Existing menu buttons and commands take precedence over book inputs; navigating to another screen discards the pending book form, including its selected book ID. Unknown slash commands are not accepted as book titles or authors. Per-user/chat FSM event isolation ensures a concurrent or replayed final form message cannot create a second book after successful submission; a restart loses the form rather than resubmitting it. This is a single-process FSM guarantee, not durable deduplication for arbitrary future clients.
+
+Support messages use the configured `ADMIN_TELEGRAM_IDS` allowlist: private user messages are copied to admins, admin replies may contain text or media, and each user reply button continues the same open ticket. Admins can block/unblock the ticket owner. PostgreSQL stores ticket status and event metadata (actor ID, direction, timestamp) but never message text, file IDs, or media; account deletion cascades ticket metadata and blocks. Replies require the bot to be able to message that user.
+
+The channel catalog is a PostgreSQL metadata mirror populated by `services/book_catalog_sync.py`. The source SQLite file is opened read-only in a worker thread and read in short batches; only `BOOKzMA` rows and required metadata are copied. `raw_data`, file contents, and other source channels are excluded. The initial import starts at row zero; subsequent daily runs resume from `book_catalog_sync_state.source_row_id`. Source additions are reflected; source-side edits or deletions below the saved cursor are not reconciled automatically. The catalog query uses PostgreSQL's normalized Persian/Arabic full-text vector. `/setinline` must be enabled in BotFather. Inline results for current SQLite records link to the original post; only entries with a Bot API `file_id` can be sent as cached documents. Private result delivery uses `copyMessage` and does not download/re-upload the file.
+
+Catalog books are added to the user's `user_books` with `total_pages = NULL`. The user may set the page count later using `book:set_pages:<id>`; page logging is rejected until then. Manual book creation still asks for the page count during its existing form. A unique `(user_id, catalog_message_id)` constraint makes repeated catalog additions idempotent.
 
 Account deletion (`N-04`) is a four-step wizard started from the profile: a warning screen, a deletion-reason choice, a typed confirmation word (`حذف`), and a final button. Deletion removes the `users` row (cascading to all related tables) and inserts a `deleted_accounts` tombstone in the same transaction. The membership middleware intercepts tombstoned users before handlers run — they get a neutral start prompt (no mention of a previous account) and no activity or start is recorded for them; the `account_restore` callback clears the tombstone. The API exposes the same behavior through `DELETE /api/v1/me`, and authenticated requests for tombstoned users return 401 until they re-register via the bot.
 
@@ -102,8 +119,13 @@ The existing FastAPI app is in `api.py`; the container runs it through Uvicorn. 
 | --- | --- |
 | `users` | Telegram ID primary key; optional display name/username; timezone defaults to `Asia/Tehran`; first-start and onboarding-completion timestamps; comeback state (`broken_streak_days`, `comeback_bonus_days`, `comeback_base_day`); leaderboard opt-out and permanent broadcast-unavailable flags |
 | `reading_logs` | `(user_id, day)` composite primary key; user foreign key cascades on delete |
-| `user_books` | User-owned manual books with title, optional author, total pages (1–100,000), `reading`/`finished`/`archived` status and lifecycle timestamps; at most 10 `reading` books per user, enforced transactionally |
+| `user_books` | User-owned books with title, optional author, optional total pages (1–100,000 when set), optional source `catalog_message_id`, `reading`/`finished`/`archived` status, page-count-set and lifecycle timestamps; no per-user book-count cap; a unique `(user_id, catalog_message_id)` prevents duplicate catalog additions |
+| `support_tickets` | Open/closed ticket metadata for a user; message contents and attachments are not stored |
+| `support_events` | Ticket ID, actor ID, event kind (`user_message`/`admin_reply`) and timestamp only; cascades with ticket deletion |
+| `support_blocks` | User ID and blocking admin ID; account deletion cascades the block |
 | `page_logs` | Page increments for a book and local day; positive bounded pages and unique `(user_book_id, source_message_id)` make Telegram message retries idempotent; cascades through the owned book |
+| `book_catalog_entries` | PostgreSQL mirror of main `BOOKzMA` channel metadata only; message ID primary key, source-row checkpoint, filename, normalized caption/search text, media metadata, optional Bot API file ID; GIN full-text index; no file bytes or raw Telethon payload |
+| `book_catalog_sync_state` | Singleton `main` checkpoint, last successful sync time, and last exception class; each source batch and cursor update commit in one transaction |
 | `streak_freezes` | Earned/used freeze events, separate from reading logs; unique `(user_id, kind, day)` |
 | `activity_days` | One row per user and UTC date; cascades with user deletion |
 | `streak_alerts` | Daily dedup for streak-at-risk alerts; composite `(user_id, day)` primary key; cascades with user deletion |
@@ -125,7 +147,7 @@ The existing FastAPI app is in `api.py`; the container runs it through Uvicorn. 
 
 Reading streak is computed from read dates plus explicitly used freeze dates; freeze days are not reported as reading. Users start with zero freezes, earn one per seven consecutive real reading days, and hold at most two. One missed day is automatically protected when reading resumes the next day; freezes cannot cover consecutive missed days. Weekly summaries cover today and the preceding six local dates. Reading reminders are capped at five per user; presets are `08:00`, `13:00`, `18:00`, `21:00`, and `23:00`.
 
-Personal-library progress is derived from page-log sums rather than a mutable counter. Users may log several reading sessions for the same book/local day; every distinct Telegram message is counted once. The book row is locked while checking remaining pages, and reaching the declared total automatically marks it finished. The first positive page log on a local day creates the existing idempotent `reading_logs` row in the same transaction and runs the same freeze, comeback, badge, reminder-suppression, and buddy-nudge behavior as the `read` callback. Archiving retains the book and page logs but hides it from the shelf; restoring archived books and correcting page logs are not implemented.
+Personal-library progress is derived from page-log sums rather than a mutable counter. Users may log several reading sessions for the same book/local day; every distinct Telegram message is counted once. The book row is locked while checking remaining pages, and reaching the declared total automatically marks it finished. Only a successful positive page log creates the existing idempotent `reading_logs` row in the same transaction and runs the same freeze, comeback, badge, reminder-suppression, and buddy-nudge behavior as the `read` callback; adding a book, setting its total pages, or archiving it does not register a reading day. Archiving retains the book and page logs and moves it to a separate paginated archive shelf; unarchiving archived books and correcting page logs are not implemented. Catalog-added books show direct post and file-download buttons in their details.
 
 The displayed progress percentage is rounded down: 199/200 pages shows 99%, and 100% is shown only once the declared total has been reached.
 
@@ -160,6 +182,10 @@ A per-process rate-limit middleware (`middlewares/rate_limit.py`, decision D-10)
 | `BACKUP_KEEP_LOCAL` | `Settings` / backup service | Number of newest local backups to keep after rotation; defaults to 1 |
 | `RATE_LIMIT_MAX_UPDATES` | `Settings` / rate-limit middleware | Optional; max updates per user per window across messages and callbacks; defaults to 20 |
 | `RATE_LIMIT_WINDOW_SECONDS` | `Settings` / rate-limit middleware | Optional; fixed window length in seconds; defaults to 10 |
+| `BOOKZMA_CATALOG_DB_HOST_DIR` | Compose | Host directory containing the external SQLite file; mounted read-only at `/catalog` |
+| `CHANNEL_CATALOG_DB_PATH` | `Settings` / catalog sync | Optional SQLite path inside the container (for example `/catalog/channel_data.db`); unset disables sync/search |
+| `CHANNEL_CATALOG_CHANNEL_USERNAME` | `Settings` / catalog sync | Main-channel allowlist; defaults to `BOOKzMA` and must match SQLite `channels.is_main=1` |
+| `CHANNEL_CATALOG_SYNC_HOUR_UTC` | `Settings` / catalog sync | UTC hour for the daily sync; defaults to 3; initial sync starts when the bot starts |
 | `LOG_LEVEL` | `Settings` | Defaults to `INFO`; no logging configuration consuming it was found |
 
 `.env.sample` documents the variables above and an optional placeholder `DATABASE_URL` for local tools. Set the real owner ID and support destinations in the runtime environment; do not commit them. Code supplies a default database URL and Compose overrides it for the bot container. The local launcher uses `TELEGRAM_PROXY` to create an aiogram session; `requirements-dev.txt` includes the optional SOCKS support dependency. Docker leaves the session unset and connects directly.

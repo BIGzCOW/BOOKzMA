@@ -6,7 +6,7 @@ from typing import Any
 
 from aiogram import BaseMiddleware, Bot
 from aiogram.enums import ChatMemberStatus
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -71,6 +71,11 @@ class MembershipMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        chat = getattr(event, "chat", None)
+        if chat is None and isinstance(event, CallbackQuery):
+            chat = getattr(getattr(event, "message", None), "chat", None)
+        if getattr(chat, "is_direct_messages", False):
+            return None
         user = data.get("event_from_user")
         if user is None:
             return await handler(event, data)
@@ -110,9 +115,21 @@ class MembershipMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         if isinstance(event, CallbackQuery):
-            await event.answer(texts.JOIN_FIRST, show_alert=True)
+            try:
+                await event.answer(texts.JOIN_FIRST, show_alert=True)
+            except TelegramBadRequest as exc:
+                log.warning("join-gate callback answer failed: %s", exc)
+                return None
             if isinstance(event.message, Message):
-                await event.message.answer(texts.JOIN_GATE, reply_markup=keyboards.join_kb(missing))
+                try:
+                    await event.message.answer(
+                        texts.JOIN_GATE, reply_markup=keyboards.join_kb(missing)
+                    )
+                except TelegramBadRequest as exc:
+                    log.warning("join-gate message answer failed: %s", exc)
         elif isinstance(event, Message):
-            await event.answer(texts.JOIN_GATE, reply_markup=keyboards.join_kb(missing))
+            try:
+                await event.answer(texts.JOIN_GATE, reply_markup=keyboards.join_kb(missing))
+            except TelegramBadRequest as exc:
+                log.warning("join-gate answer failed: %s", str(exc).replace("\n", " "))
         return None
