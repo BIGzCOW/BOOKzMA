@@ -180,7 +180,12 @@ def test_dashboard_reports_deletion_kpis():
 
 
 async def _count(session, model, user_id: int) -> int:
-    column = model.id if model is User else model.user_id
+    if model is User or model is SupportTicket:
+        column = model.id
+    elif model is SupportEvent:
+        column = model.ticket_id
+    else:
+        column = model.user_id
     return (
         await session.scalar(
             select(func.count()).select_from(model).where(column == user_id)
