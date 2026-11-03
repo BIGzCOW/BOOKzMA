@@ -18,6 +18,19 @@ docker compose logs --tail=30 bot
 
 قبلش مطمئن شو تنظیمات کانال و دسترسی ربات را در `.env` درست کرده‌ای و فقط یک نمونه با توکن production polling می‌کند. محیط توسعهٔ محلی باید از ربات تست با توکن جدا استفاده کند؛ جزئیات launcher محلی در `docs/LOCAL_DEV.md` است.
 
+### کاتالوگ SQLite کانال (اختیاری)
+
+برای جست‌وجوی کاتالوگ، مسیر پوشهٔ دیتابیس SQLite ابزار کانال را در `.env` به مسیر واقعی میزبان بده؛ volume داخل کانتینر فقط‌خواندنی است و خود importer فقط metadata کانال اصلی را به PostgreSQL می‌فرستد:
+
+```dotenv
+BOOKZMA_CATALOG_DB_HOST_DIR=/home/bigcow/bookzma-core/core/data
+CHANNEL_CATALOG_DB_PATH=/catalog/channel_data.db
+CHANNEL_CATALOG_CHANNEL_USERNAME=BOOKzMA
+CHANNEL_CATALOG_SYNC_HOUR_UTC=3
+```
+
+فایل را به repository یا volume دیتابیس PostgreSQL کپی نکن. اگر مسیر فایل تنظیم نشود یا در دسترس نباشد، sync کاتالوگ اجرا نمی‌شود و bot عادی بالا می‌آید. sync اولیه بعد از startup شروع می‌شود؛ بعد از تمام‌شدن آن، sync بعدی هر روز در ساعت UTC تنظیم‌شده انجام می‌شود. در لاگ، فقط تعداد ردیف‌های upsertشده یا نوع خطا ثبت می‌شود، نه filenameها یا `raw_data`. برای deploy، image سرویس bot را rebuild کن تا migration و task جدید نصب شوند.
+
 ## آپدیت
 
 تغییر را اول با PR به `main` merge و نسخه را tag کن. روی سرور پیش از به‌روزرسانی backup بگیر و `.env` را با envهای موردنیاز نسخه هماهنگ کن؛ مقدار secret را وارد Git یا log نکن. سپس tag تأییدشده را deploy کن:

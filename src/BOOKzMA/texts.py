@@ -1,9 +1,15 @@
 from html import escape
 
-from BOOKzMA.constants import MAX_ACTIVE_BOOKS, MAX_BOOK_PAGES, MAX_REMINDERS, MILESTONES
+from BOOKzMA.constants import (
+    MAX_BOOK_PAGES,
+    MAX_REMINDERS,
+    MILESTONES,
+    STREAK_LEADERBOARD_LIMIT,
+)
 from BOOKzMA.services.backup import BackupInfo
 from BOOKzMA.services.badges import badge_label
 from BOOKzMA.services.books import progress_percent
+from BOOKzMA.services.catalog_text import strip_channel_handles
 from BOOKzMA.utils import fa
 
 MAX_STREAK_FREEZES = 2
@@ -27,14 +33,28 @@ BOOK_BAD_AUTHOR = "اسم نویسنده معتبر نیست؛ یک نام کو�
 BOOK_ASK_TOTAL_PAGES = "کتاب در مجموع چند صفحه داره؟ فقط یک عدد مثبت بفرست."
 BOOK_BAD_TOTAL_PAGES = f"تعداد کل صفحات باید عددی بین ۱ تا {fa(MAX_BOOK_PAGES)} باشه."
 BOOK_BAD_PAGES = f"تعداد صفحات باید عددی بین ۱ تا {fa(MAX_BOOK_PAGES)} باشه."
-BOOK_LIMIT = f"فعلاً حداکثر {fa(MAX_ACTIVE_BOOKS)} کتاب در حال مطالعه می‌تونی داشته باشی."
 BOOK_FLOW_LOST = "این مرحله با راه‌اندازی دوبارهٔ ربات بسته شده؛ از کتابخانه دوباره شروع کن."
-BOOK_NOT_FOUND = "این کتاب پیدا نشد یا به کتابخانهٔ تو تعلق نداره."
+BOOK_NOT_FOUND = "این کتاب پیدا نشد یا به کتابخانه تو تعلق نداره."
 BOOK_NOT_READABLE = "برای این کتاب نمی‌شه مطالعهٔ جدید ثبت کرد."
+BOOK_PAGE_COUNT_MISSING = "اول تعداد کل صفحه‌های این کتاب رو مشخص کن."
 BOOK_PAGES_DUPLICATE = "این پیام قبلاً ثبت شده و دوباره شمرده نشد."
 BOOK_STREAK_ALREADY_RECORDED = "مطالعهٔ امروزت قبلاً برای استریک ثبت شده بود."
 BOOK_ARCHIVED = "کتاب آرشیو شد و سابقه‌اش محفوظ موند."
+BOOK_RESTORED = "کتاب به کتابخانه برگشت."
 BOOK_PRIVATE_ONLY = "برای حفظ حریم خصوصی، کتابخانه رو در گفت‌وگوی خصوصی با ربات باز کن."
+CATALOG_ASK_QUERY = "اسم کتاب یا بخشی از توضیحش رو بفرست تا در کتاب‌های کانال بگردم."
+CATALOG_BAD_QUERY = "عبارت جست‌وجو معتبر نیست؛ دست‌کم دو حرف بفرست."
+CATALOG_NOT_CONFIGURED = "جست‌وجوی کتاب‌های کانال فعلاً در دسترس نیست."
+CATALOG_NO_RESULTS = "کتابی با این عبارت پیدا نکردم."
+CATALOG_SEARCH_FAILED = "الان جست‌وجو انجام نشد؛ کمی بعد دوباره امتحان کن."
+CATALOG_BOOK_MISSING = "این فایل دیگه در فهرست کتاب‌ها نیست."
+CATALOG_BOOK_ADDED = "کتاب به کتابخانه‌ات اضافه شد. هر وقت خواستی تعداد صفحه‌هاش رو تعیین کن."
+CATALOG_BOOK_EXISTS = "این کتاب از قبل در کتابخانه‌ات هست."
+CATALOG_BOOK_ADD_FAILED = "افزودن کتاب انجام نشد؛ دوباره امتحان کن."
+CATALOG_FILE_FAILED = "فعلاً نتونستم فایل رو از کانال کپی کنم؛ پست کانال رو ببین."
+BOOK_ASK_PAGE_COUNT_LATER = "هر وقت آماده‌ای، تعداد کل صفحه‌های کتاب رو بفرست."
+BOOK_PAGE_COUNT_UNDER_PROGRESS = "تعداد کل صفحه‌ها نمی‌تونه از صفحه‌هایی که قبلاً خوندی کمتر باشه."
+BOOK_PAGE_COUNT_ALREADY_SET = "تعداد صفحه‌های این کتاب قبلاً ثبت شده."
 
 ACCOUNT_DELETE_WARN = (
     "🗑 <b>حذف حساب</b>\n\n"
@@ -277,7 +297,7 @@ def home(
         status = "⏳ امروز هنوز نخوندی. همین الان یه استریک جدید شروع کن!"
 
     result = (
-        "📚 <b>کتابخونه مرجع</b>\n\n"
+        "📚 <b>کتابخانه مرجع</b>\n\n"
         f"{streak_line}\n"
         f"🏆 رکورد: {fa(best)} روز\n\n"
         f"🛡️ فریز استریک: {fa(freeze_balance)} از {fa(MAX_STREAK_FREEZES)}\n\n"
@@ -290,16 +310,58 @@ def home(
     return result
 
 
-def bookshelf(active: int, visible: int) -> str:
+def bookshelf(
+    active: int,
+    visible: int,
+    *,
+    archived: bool = False,
+    finished: int = 0,
+    planned: int = 0,
+    unstarted: int = 0,
+    archived_count: int = 0,
+    total_count: int | None = None,
+    reading_titles: tuple[str, ...] = (),
+    page: int = 1,
+    page_count: int = 1,
+) -> str:
     if visible == 0:
-        body = "هنوز کتابی به کتابخانه‌ات اضافه نکردی."
+        body = "هنوز کتابی آرشیو نکردی." if archived else "هنوز کتابی به کتابخانه‌ات اضافه نکردی."
     else:
         body = "برای دیدن جزئیات یا ثبت مطالعه، یک کتاب رو انتخاب کن."
+    title = "🗄 <b>آرشیو کتاب‌ها</b>" if archived else "📚 <b>کتابخانه من</b>"
+    total_count = visible + archived_count if total_count is None else total_count
+    lines = [title, ""]
+    if archived:
+        lines.extend(
+            [f"کتاب‌های آرشیوشده: {fa(visible)}", f"کل کتاب‌ها: {fa(total_count)}"]
+        )
+    else:
+        lines.extend(
+            [
+                f"در حال مطالعه (حداقل ۱ صفحه): {fa(active)}",
+                f"تمام‌شده: {fa(finished)}",
+                f"برنامه‌ریزی‌شده: {fa(planned)}",
+                f"شروع‌نشده: {fa(unstarted)}",
+                f"آرشیوشده: {fa(archived_count)}",
+                f"کل کتاب‌ها: {fa(total_count)}",
+            ]
+        )
+        if reading_titles:
+            lines.extend(["", "📖 کتاب‌های شروع‌شده:"])
+            lines.extend(f"• {escape(name[:48])}" for name in reading_titles)
+            remaining = active - len(reading_titles)
+            if remaining > 0:
+                lines.append(f"و {fa(remaining)} کتاب دیگر")
+    if page_count > 1:
+        lines.extend(["", f"صفحه {fa(page)} از {fa(page_count)}"])
+    lines.extend(["", body])
+    return "\n".join(lines)
+
+
+def catalog_results(query: str, first: int, last: int) -> str:
     return (
-        "📚 <b>کتابخانهٔ من</b>\n\n"
-        f"در حال مطالعه: {fa(active)} از {fa(MAX_ACTIVE_BOOKS)}\n"
-        f"کتاب‌های نمایش‌داده‌شده: {fa(visible)}\n\n"
-        f"{body}"
+        f"🔎 نتایج جست‌وجو برای <b>{escape(query)}</b>\n"
+        f"نتیجه‌های {fa(first)} تا {fa(last)}"
     )
 
 
@@ -311,15 +373,73 @@ def book_added(title: str, total_pages: int) -> str:
     )
 
 
+def _format_file_size(size_bytes: int | None) -> str:
+    if size_bytes is None:
+        return ""
+    if size_bytes >= 1024 * 1024:
+        size_mb = size_bytes / (1024 * 1024)
+        readable_size = f"{size_mb:.1f}".rstrip("0").rstrip(".")
+        return f"حجم: {fa(readable_size)} مگابایت"
+    return f"حجم: {fa(max(1, round(size_bytes / 1024)))} کیلوبایت"
+
+
+def _format_mime_label(mime_type: str | None) -> str:
+    if not mime_type:
+        return ""
+    normalized = mime_type.strip().lower()
+    if "/" in normalized:
+        _, ext = normalized.split("/", 1)
+    else:
+        ext = normalized
+    label = ext.strip() or "file"
+    return f"فرمت: {label}"
+
+
+def catalog_result(
+    file_name: str,
+    caption_preview: str | None,
+    file_size: int | None,
+    mime_type: str | None,
+) -> str:
+    details: list[str] = []
+    mime_label = _format_mime_label(mime_type)
+    if mime_label:
+        details.append(mime_label)
+    size_label = _format_file_size(file_size)
+    if size_label:
+        details.append(size_label)
+    detail_line = f"\n{' · '.join(details)}" if details else ""
+    clean_name = strip_channel_handles(file_name or "فایل بدون نام")
+    clean_caption = strip_channel_handles(caption_preview)
+    caption_line = f"\n\n{escape(clean_caption)}" if clean_caption else ""
+    return (
+        f"📚 <b>{escape(clean_name or 'فایل بدون نام')}</b>"
+        f"{detail_line}{caption_line}"
+    )
+
+
 def book_detail(
     title: str,
     author: str | None,
     pages_read: int,
-    total_pages: int,
+    total_pages: int | None,
     status: str,
 ) -> str:
+    title = strip_channel_handles(title)
     author_line = f"✍️ {escape(author)}\n" if author else ""
-    status_label = "در حال مطالعه" if status == "reading" else "تمام‌شده"
+    status_label = {
+        "planned": "می‌خواهم بخوانم",
+        "reading": "در حال مطالعه",
+        "finished": "تمام‌شده",
+        "archived": "آرشیوشده",
+    }.get(status, "در حال مطالعه")
+    if total_pages is None:
+        return (
+            f"📖 <b>{escape(title)}</b>\n"
+            f"{author_line}"
+            f"وضعیت: {status_label}\n\n"
+            "تعداد صفحه‌ها هنوز ثبت نشده. برای شروع مطالعه، تعداد کل صفحه‌ها را تعیین کن."
+        )
     remaining = max(0, total_pages - pages_read)
     return (
         f"📖 <b>{escape(title)}</b>\n"
@@ -332,6 +452,7 @@ def book_detail(
 
 
 def book_ask_pages(title: str, remaining: int) -> str:
+    title = strip_channel_handles(title)
     return (
         f"امروز چند صفحه از <b>{escape(title)}</b> خوندی؟\n"
         f"صفحات باقی‌مانده: {fa(remaining)}"
@@ -350,6 +471,7 @@ def pages_logged(
     finished: bool,
     reading_message: str,
 ) -> str:
+    title = strip_channel_handles(title)
     finish_line = "\n🎉 کتاب رو تموم کردی!" if finished else ""
     return (
         f"برای <b>{escape(title)}</b>، {fa(added)} صفحه ثبت شد ✅\n"
@@ -360,9 +482,9 @@ def pages_logged(
 
 
 def book_archive_confirm(title: str) -> str:
+    title = strip_channel_handles(title)
     return (
         f"کتاب <b>{escape(title)}</b> آرشیو بشه؟\n\n"
-        "کتاب و همهٔ سابقه‌ها حفظ می‌شن، ولی در نسخهٔ فعلی امکان برگردوندنش از آرشیو نیست."
     )
 
 
@@ -478,12 +600,38 @@ def profile(
     return result
 
 
+def streak_leaderboard(scores: list[tuple[int, str]]) -> str:
+    if not scores:
+        return "🏅 <b>لیدربورد استریک</b>\n\nهنوز استریکی برای نمایش نیست."
+    lines = ["🏅 <b>لیدربورد استریک</b>"]
+    for rank, (streak, display_name) in enumerate(scores[:STREAK_LEADERBOARD_LIMIT], 1):
+        lines.append(f"{fa(rank)}. {escape(display_name)} · {fa(streak)} روز")
+    return "\n".join(lines)
+
+
 def support() -> str:
     return (
-        "💚 <b>حمایت از پروژه</b>\n\n"
-        "با ستاره‌دادن به پروژه در گیت‌هاب یا پیام خصوصی برای دریافت راهنمای حمایت مالی با Gram، "
-        "به ادامهٔ توسعه کمک کن."
+        "💬 <b>پشتیبانی و ارتباط</b>\n\n"
+        "برای گزارش مشکل، پیشنهاد یا انتقاد، پیام پشتیبانی بفرست. "
     )
+
+
+SUPPORT_ASK_MESSAGE = "پیام یا فایل موردنظرت رو بفرست؛ به مدیران پشتیبانی می‌رسه."
+SUPPORT_ASK_REPLY = "پاسخت رو بفرست؛ متن، عکس یا فایل هم می‌تونی ارسال کنی."
+SUPPORT_RECEIVED = "پیامت به پشتیبانی رسید؛ اگر لازم باشه همین‌جا جواب می‌دیم."
+SUPPORT_NOT_CONFIGURED = "پشتیبانی هنوز راه‌اندازی نشده؛ لطفاً کمی بعد دوباره تلاش کن."
+SUPPORT_DELIVERY_FAILED = "ارسال پیام انجام نشد؛ کمی بعد دوباره امتحان کن."
+SUPPORT_REPLY_SENT = "پاسخ برای کاربر فرستاده شد."
+SUPPORT_REPLY_FAILED = "ارسال پاسخ به کاربر انجام نشد."
+SUPPORT_REPLY_UNAUTHORIZED = "این دکمه فقط برای مدیران پشتیبانیه."
+SUPPORT_TICKET_MISSING = "این تیکت پیدا نشد یا بسته شده."
+SUPPORT_USER_BLOCKED = "امکان ارسال پیام به پشتیبانی برای حسابت غیرفعال شده."
+SUPPORT_BLOCKED = "کاربر از پشتیبانی مسدود شد."
+SUPPORT_UNBLOCKED = "مسدودی کاربر برداشته شد."
+SUPPORT_ADMIN_TICKET = (
+    "✉️ تیکت #{ticket_id} از <b>{name}</b>\n"
+    "شناسه کاربر: <code>{user_id}</code>"
+)
 
 
 def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> str:
@@ -507,7 +655,16 @@ def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> 
         f"{fa(stats['reading_days_7d'])} / {fa(stats['reading_days_30d'])}\n"
         f"📚 کتاب‌های فعال/تمام‌شده: {fa(stats['active_books'])} / "
         f"{fa(stats['finished_books'])}\n"
-        f"📄 صفحات ثبت‌شده در ۷ روز: {fa(stats['pages_7d'])}\n"
+        f"🗄 کتاب‌های آرشیوشده: {fa(stats['archived_books'])} · "
+        f"افزوده/آرشیو/بازگردانی در ۷ روز: {fa(stats['books_added_7d'])} / "
+        f"{fa(stats['books_archived_7d'])} / {fa(stats['books_restored_7d'])}\n"
+        f"📄 نشست/صفحهٔ مطالعه در ۷ روز: {fa(stats['page_sessions_7d'])} / "
+        f"{fa(stats['pages_7d'])}\n"
+        f"📑 تنظیم تعداد صفحات در ۷ روز: {fa(stats['page_counts_set_7d'])}\n"
+        f"💬 پشتیبانی · تیکت باز/جدید: {fa(stats['support_tickets_open'])} / "
+        f"{fa(stats['support_tickets_7d'])} · پیام/پاسخ ۷روزه: "
+        f"{fa(stats['support_messages_7d'])} / {fa(stats['support_replies_7d'])} · "
+        f"مسدود: {fa(stats['support_blocked_users'])}\n"
         f"🔁 بازگشت D1/D7/D30: {fa(stats['retention_d1'])}% / "
         f"{fa(stats['retention_d7'])}% / {fa(stats['retention_d30'])}%\n"
         f"🔥 دارای استریک: {fa(stats['users_with_streak'])} · "
@@ -651,7 +808,9 @@ def mesbak_league(rows: list[tuple[int, str, int]], opted_in: bool) -> str:
     if not rows:
         return "🏆 <b>لیگ مسباک</b>\n\nهنوز کسی در لیگ نیست؛ اولین نفر تو باش!"
     lines = ["🏆 <b>لیگ هفتگی مسباک</b>"]
-    for rank, (_user_id, name, completed) in enumerate(rows[:10], 1):
+    for rank, (_user_id, name, completed) in enumerate(
+        rows[:STREAK_LEADERBOARD_LIMIT], 1
+    ):
         safe_name = escape(name.replace("\n", " ")[:48])
         lines.append(f"{fa(rank)}. {safe_name} · {fa(completed)} روز کامل")
     if not opted_in:

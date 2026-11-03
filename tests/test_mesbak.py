@@ -146,6 +146,16 @@ def test_mesbak_screen_shows_independent_badges():
     assert "🏅 دستاوردها: ۷ روز" in screen
 
 
+def test_mesbak_league_shows_only_top_25():
+    rows = [(user_id, f"member {user_id}", 30 - user_id) for user_id in range(30)]
+
+    league = texts.mesbak_league(rows, opted_in=True)
+
+    assert league.count("\n") == 25
+    assert "member 24" in league
+    assert "member 25" not in league
+
+
 def test_mesbak_buddy_button_labels_are_bounded_and_single_line():
     keyboard = keyboards.mesbak_buddy_list_kb([(1, "نام\n" + "x" * 100)])
     buddy_button = keyboard.inline_keyboard[1][0]
@@ -208,6 +218,14 @@ def test_mesbak_goal_keyboard_has_valid_rows_and_callbacks():
         f"mesbak:goal:{goal}" for goal in range(1, 6)
     ]
     assert keyboard.inline_keyboard[1][0].callback_data == "mesbak:open"
+
+
+def test_league_toggle_button_color_matches_action():
+    joining = keyboards.mesbak_league_kb(opted_in=False).inline_keyboard[0][0]
+    leaving = keyboards.mesbak_league_kb(opted_in=True).inline_keyboard[0][0]
+
+    assert joining.style == "success"
+    assert leaving.style == "danger"
 
 
 def test_reminder_due_respects_late_window_retry_and_daily_dedup():

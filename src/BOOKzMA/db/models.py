@@ -4,16 +4,19 @@ from sqlalchemy import (
     BigInteger,
     Date,
     DateTime,
+    Computed,
     ForeignKey,
     Integer,
     Index,
     CheckConstraint,
     String,
+    Text,
     Time,
     UniqueConstraint,
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from BOOKzMA.constants import DEFAULT_TIMEZONE
@@ -54,10 +57,16 @@ class ReadingLog(Base):
 class UserBook(Base):
     __tablename__ = "user_books"
     __table_args__ = (
-        CheckConstraint("total_pages BETWEEN 1 AND 100000", name="ck_user_book_total_pages"),
         CheckConstraint(
-            "status IN ('reading', 'finished', 'archived')",
+            "total_pages IS NULL OR total_pages BETWEEN 1 AND 100000",
+            name="ck_user_book_total_pages",
+        ),
+        CheckConstraint(
+            "status IN ('planned', 'reading', 'finished', 'archived')",
             name="ck_user_book_status",
+        ),
+        UniqueConstraint(
+            "user_id", "catalog_message_id", name="uq_user_book_catalog_message"
         ),
         Index("ix_user_books_user_status", "user_id", "status"),
     )
@@ -68,11 +77,98 @@ class UserBook(Base):
     )
     title: Mapped[str] = mapped_column(String(200))
     author: Mapped[str | None] = mapped_column(String(200))
-    total_pages: Mapped[int] = mapped_column(Integer)
+    total_pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    catalog_message_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("book_catalog_entries.message_id", ondelete="SET NULL")
+    )
     status: Mapped[str] = mapped_column(String(16), default="reading", server_default="reading")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    restored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    page_count_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+    __table_args__ = (
+        CheckConstraint("status IN ('open', 'closed')", name="ck_support_ticket_status"),
+        Index("ix_support_tickets_user_status", "user_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE")
+    )
+    status: Mapped[str] = mapped_column(String(16), default="open", server_default="open")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SupportEvent(Base):
+    __tablename__ = "support_events"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('user_message', 'admin_reply')", name="ck_support_event_kind"
+        ),
+        Index("ix_support_events_created_at", "created_at"),
+        Index("ix_support_events_ticket_id", "ticket_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(
+        ForeignKey("support_tickets.id", ondelete="CASCADE")
+    )
+    actor_id: Mapped[int] = mapped_column(BigInteger)
+    kind: Mapped[str] = mapped_column(String(24))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SupportBlock(Base):
+    __tablename__ = "support_blocks"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    admin_id: Mapped[int] = mapped_column(BigInteger)
+    blocked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BookCatalogEntry(Base):
+    __tablename__ = "book_catalog_entries"
+    __table_args__ = (
+        UniqueConstraint("source_row_id", name="uq_book_catalog_source_row"),
+        Index("ix_book_catalog_file_name_message_id", "file_name", "message_id"),
+        Index("ix_book_catalog_search_vector", "search_vector", postgresql_using="gin"),
+    )
+
+    message_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    source_row_id: Mapped[int] = mapped_column(BigInteger)
+    file_name: Mapped[str | None] = mapped_column(Text)
+    caption_preview: Mapped[str | None] = mapped_column(String(512))
+    caption_search: Mapped[str] = mapped_column(Text, default="", server_default="")
+    search_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    media_type: Mapped[str | None] = mapped_column(String(32))
+    mime_type: Mapped[str | None] = mapped_column(String(255))
+    file_size: Mapped[int | None] = mapped_column(BigInteger)
+    posted_at: Mapped[str | None] = mapped_column(String(64))
+    bot_file_id: Mapped[str | None] = mapped_column(String(512))
+    search_vector: Mapped[str] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('simple'::regconfig, coalesce(search_text, ''))",
+            persisted=True,
+        ),
+    )
+
+
+class BookCatalogSyncState(Base):
+    __tablename__ = "book_catalog_sync_state"
+
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    source_row_id: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(String(255))
 
 
 class PageLog(Base):

@@ -9,7 +9,7 @@ pg_dump را داخل سرویس db اجرا می‌کند، خروجی را د�
       --project /path/to/BOOKzMA --dest /var/backups/bookzma \
       --rclone gdrive:bookzma-backups >> /var/log/bookzma-backup.log 2>&1
 
-فقط کتابخانهٔ استاندارد پایتون؛ نیازی به نصب پروژه نیست.
+فقط کتابخانه استاندارد پایتون؛ نیازی به نصب پروژه نیست.
 """
 
 import argparse

@@ -16,6 +16,9 @@ from BOOKzMA.db.models import (
     Reminder,
     StreakAlert,
     StreakFreeze,
+    SupportBlock,
+    SupportEvent,
+    SupportTicket,
     User,
     UserBook,
 )
@@ -65,6 +68,41 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
             select(func.count()).select_from(UserBook).where(UserBook.finished_at.is_not(None))
         )
         or 0,
+        "archived_books": await session.scalar(
+            select(func.count()).select_from(UserBook).where(UserBook.status == "archived")
+        )
+        or 0,
+        "books_added_7d": await session.scalar(
+            select(func.count()).select_from(UserBook).where(
+                UserBook.created_at >= now - timedelta(days=7)
+            )
+        )
+        or 0,
+        "books_archived_7d": await session.scalar(
+            select(func.count()).select_from(UserBook).where(
+                UserBook.archived_at >= now - timedelta(days=7)
+            )
+        )
+        or 0,
+        "books_restored_7d": await session.scalar(
+            select(func.count()).select_from(UserBook).where(
+                UserBook.restored_at >= now - timedelta(days=7)
+            )
+        )
+        or 0,
+            "page_sessions_7d": await session.scalar(
+                select(func.count())
+                .select_from(PageLog)
+                .where(PageLog.day.between(seven_days_ago, today))
+        )
+        or 0,
+        "page_counts_set_7d": await session.scalar(
+            select(func.count()).select_from(UserBook).where(
+                UserBook.page_count_set_at >= now - timedelta(days=7),
+                UserBook.page_count_set_at <= now,
+            )
+        )
+        or 0,
         "pages_7d": await session.scalar(
             select(func.coalesce(func.sum(PageLog.pages_read), 0)).where(
                 PageLog.day.between(seven_days_ago, today)
@@ -72,6 +110,34 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
         or 0,
         "reminders": await session.scalar(select(func.count()).select_from(Reminder)) or 0,
+        "support_tickets_open": await session.scalar(
+            select(func.count()).select_from(SupportTicket).where(SupportTicket.status == "open")
+        )
+        or 0,
+        "support_tickets_7d": await session.scalar(
+            select(func.count()).select_from(SupportTicket).where(
+                SupportTicket.created_at >= now - timedelta(days=7)
+            )
+        )
+        or 0,
+        "support_messages_7d": await session.scalar(
+            select(func.count()).select_from(SupportEvent).where(
+                SupportEvent.kind == "user_message",
+                SupportEvent.created_at >= now - timedelta(days=7),
+            )
+        )
+        or 0,
+        "support_replies_7d": await session.scalar(
+            select(func.count()).select_from(SupportEvent).where(
+                SupportEvent.kind == "admin_reply",
+                SupportEvent.created_at >= now - timedelta(days=7),
+            )
+        )
+        or 0,
+        "support_blocked_users": await session.scalar(
+            select(func.count()).select_from(SupportBlock)
+        )
+        or 0,
         "freezes_used": await session.scalar(
             select(func.count()).select_from(StreakFreeze).where(StreakFreeze.kind == "used")
         )

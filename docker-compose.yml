@@ -27,6 +27,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - "${BOOKZMA_BACKUP_DIR:?BOOKZMA_BACKUP_DIR رو توی .env بذار}:/backups"
+      - "${BOOKZMA_CATALOG_DB_HOST_DIR:-./catalog-data}:/catalog:ro"
     depends_on:
       db:
         condition: service_healthy

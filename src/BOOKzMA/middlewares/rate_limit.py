@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import CallbackQuery, Message, TelegramObject
+from aiogram.types import CallbackQuery, InlineQuery, Message, TelegramObject
 
 from BOOKzMA import texts
 
@@ -56,6 +56,11 @@ class RateLimitMiddleware(BaseMiddleware):
                 await event.answer(texts.RATE_LIMITED)
             except Exception:
                 log.debug("rate-limit message answer failed", exc_info=True)
+        elif isinstance(event, InlineQuery):
+            try:
+                await event.answer([], cache_time=1, is_personal=True)
+            except Exception:
+                log.debug("rate-limit inline answer failed", exc_info=True)
 
     async def __call__(
         self,

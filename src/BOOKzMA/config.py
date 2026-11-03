@@ -1,4 +1,6 @@
-from pydantic import SecretStr
+from pathlib import Path
+
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +22,35 @@ class Settings(DatabaseSettings):
     backup_keep_local: int = 1
     rate_limit_max_updates: int = 20
     rate_limit_window_seconds: int = 10
+    channel_catalog_db_path: Path | None = None
+    channel_catalog_channel_username: str = "BOOKzMA"
+    channel_catalog_sync_hour_utc: int = Field(default=3, ge=0, le=23)
+
+    @model_validator(mode="after")
+    def resolve_catalog_path(self) -> "Settings":
+        candidates: list[Path] = []
+        if self.channel_catalog_db_path is not None:
+            candidates.append(self.channel_catalog_db_path)
+        candidates.extend(
+            [
+                Path("/catalog/channel_data.db"),
+                Path(__file__).resolve().parents[2]
+                / "bookzma-core"
+                / "core"
+                / "data"
+                / "channel_data.db",
+                Path(__file__).resolve().parents[2].parent
+                / "bookzma-core"
+                / "core"
+                / "data"
+                / "channel_data.db",
+            ]
+        )
+        for candidate in candidates:
+            if candidate.exists():
+                self.channel_catalog_db_path = candidate
+                return self
+        return self
 
     @property
     def admin_ids(self) -> frozenset[int]:

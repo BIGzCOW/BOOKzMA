@@ -6,6 +6,7 @@ from BOOKzMA.handlers import (
     admin,
     books,
     buddy,
+    catalog,
     onboarding,
     mesbak,
     mesbak_social,
@@ -21,12 +22,15 @@ from BOOKzMA.handlers import (
 def get_router() -> Router:
     # فیچر جدید = یه فایل تو همین پوشه + یه خط اینجا
     router = Router()
-    book_navigation = BookFlowNavigationMiddleware(books.BOOK_FORM_STATES)
+    book_navigation = BookFlowNavigationMiddleware(
+        books.BOOK_FORM_STATES | catalog.SEARCH_FORM_STATES | profile.SUPPORT_FORM_STATES
+    )
     router.message.middleware(book_navigation)
     router.callback_query.middleware(book_navigation)
     router.include_routers(
         start.router,
         books.router,
+        catalog.router,
         onboarding.router,
         mesbak.router,
         mesbak_social.router,
