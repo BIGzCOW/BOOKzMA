@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from BOOKzMA.repositories import readings, streak_freezes
 from BOOKzMA.services.streak import compute_streak
 
-FREEZE_CAP = 2
+FREEZE_CAP = 3
 READS_PER_FREEZE = 7
 
 
@@ -31,6 +31,7 @@ def should_earn_freeze(real_streak: int, balance: int) -> bool:
 
 
 async def on_read(session: AsyncSession, user_id: int, today: date) -> FreezeChange:
+    await streak_freezes.lock_user(session, user_id)
     read_days = await readings.get_days(session, user_id)
     balance = await streak_freezes.balance(session, user_id)
     used_day = None

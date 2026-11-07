@@ -35,9 +35,18 @@ async def render_home(event: Message | CallbackQuery, session: AsyncSession, tg:
     today = local_today(user.timezone)
     mesbak_profile = await mesbak_repo.get_profile(session, user.id, today)
     mesbak_streak = None
+    mesbak_freeze_balance = 0
     if mesbak_profile is not None and mesbak_profile.enabled:
+        mesbak_freeze_days = await streak_freezes.used_days(
+            session, user.id, habit="mesbak"
+        )
         mesbak_streak = current_streak(
-            completed_days(await mesbak_repo.daily_records(session, user.id)), today
+            completed_days(await mesbak_repo.daily_records(session, user.id)),
+            today,
+            mesbak_freeze_days,
+        )
+        mesbak_freeze_balance = await streak_freezes.balance(
+            session, user.id, habit="mesbak"
         )
     await session.commit()
     days = set(await readings.get_days(session, user.id))
@@ -53,6 +62,7 @@ async def render_home(event: Message | CallbackQuery, session: AsyncSession, tg:
         read_today,
         freeze_balance,
         mesbak_streak,
+            mesbak_freeze_balance,
     )
     await show(
         event,

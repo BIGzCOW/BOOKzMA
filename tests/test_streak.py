@@ -82,4 +82,5 @@ def test_freeze_reward_requires_seven_real_reads_and_room_in_inventory():
     assert should_earn_freeze(7, 0)
     assert should_earn_freeze(14, 1)
     assert not should_earn_freeze(6, 0)
-    assert not should_earn_freeze(7, 2)
+    assert should_earn_freeze(7, 2)
+    assert not should_earn_freeze(7, 3)

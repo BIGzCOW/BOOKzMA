@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta
 
 from BOOKzMA.constants import MESBAK_PRESET_TIMES
+from BOOKzMA.services.streak import compute_streak, longest_streak as calculate_longest_streak
 
 MIN_DAILY_GOAL = 1
 MAX_DAILY_GOAL = 5
@@ -89,21 +90,11 @@ def completed_days(records: Iterable[tuple[date, int, int]]) -> set[date]:
     }
 
 
-def current_streak(days: Iterable[date], today: date) -> int:
-    day_set = set(days)
-    cursor = today if today in day_set else today - timedelta(days=1)
-    count = 0
-    while cursor in day_set:
-        count += 1
-        cursor -= timedelta(days=1)
-    return count
+def current_streak(
+    days: Iterable[date], today: date, freeze_days: Iterable[date] = ()
+) -> int:
+    return compute_streak(days, today, freeze_days)
 
 
-def longest_streak(days: Iterable[date]) -> int:
-    best = run = 0
-    previous: date | None = None
-    for day in sorted(set(days)):
-        run = run + 1 if previous is not None and day - previous == timedelta(days=1) else 1
-        best = max(best, run)
-        previous = day
-    return best
+def longest_streak(days: Iterable[date], freeze_days: Iterable[date] = ()) -> int:
+    return calculate_longest_streak(days, freeze_days)

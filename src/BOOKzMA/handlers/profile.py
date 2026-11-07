@@ -53,38 +53,83 @@ async def render_profile(event: Message | CallbackQuery, session: AsyncSession) 
     today = local_today(user.timezone)
     mesbak_profile = await mesbak_repo.get_profile(session, user.id, today)
     mesbak_streak = None
+    mesbak_freeze_balance = 0
     if mesbak_profile is not None and mesbak_profile.enabled:
+        mesbak_freeze_days = await streak_freezes.used_days(
+            session, user.id, habit="mesbak"
+        )
         mesbak_streak = current_streak(
-            completed_days(await mesbak_repo.daily_records(session, user.id)), today
+            completed_days(await mesbak_repo.daily_records(session, user.id)),
+            today,
+            mesbak_freeze_days,
+        )
+        mesbak_freeze_balance = await streak_freezes.balance(
+            session, user.id, habit="mesbak"
         )
     await session.commit()
     days = await readings.get_days(session, user.id)
     frozen_days = await streak_freezes.used_days(session, user.id)
-    await show(
-        event,
-        texts.profile(
-            displayed_streak(
-                days,
-                local_today(user.timezone),
-                frozen_days,
-                user.comeback_bonus_days,
-                user.comeback_base_day,
-            ),
-            longest_streak(days, frozen_days),
-            await streak_freezes.balance(session, user.id),
-            user.leaderboard_opt_out,
-            await badges_repo.list_for_user(session, user.id),
-            mesbak_streak,
+    profile_text = texts.profile(
+        displayed_streak(
+            days,
+            local_today(user.timezone),
+            frozen_days,
+            user.comeback_bonus_days,
+            user.comeback_base_day,
         ),
-        keyboards.profile_kb(
-            user.leaderboard_opt_out, mesbak_profile is not None and mesbak_profile.enabled
-        ),
+        longest_streak(days, frozen_days),
+        await streak_freezes.balance(session, user.id),
+        user.leaderboard_opt_out,
+        await badges_repo.list_for_user(session, user.id),
+        mesbak_streak,
+            mesbak_freeze_balance,
     )
+    if isinstance(event, Message):
+        await event.answer(
+            profile_text, reply_markup=keyboards.profile_menu_kb(user.leaderboard_opt_out)
+        )
+    else:
+        await show(
+            event,
+            profile_text,
+            keyboards.profile_kb(
+                user.leaderboard_opt_out, mesbak_profile is not None and mesbak_profile.enabled
+            ),
+        )
 
 
 @router.message(Command("profile"))
 @router.message(F.text == "👤 پروفایل")
 async def on_profile(message: Message, session: AsyncSession) -> None:
+    await render_profile(message, session)
+
+
+@router.message(F.text == "⚙️ تنظیمات")
+async def on_profile_settings(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(
+        texts.PROFILE_SETTINGS_MENU,
+        reply_markup=keyboards.profile_settings_menu_kb(),
+    )
+
+
+@router.message(F.text == "🔙 پروفایل")
+async def on_profile_back(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    await state.clear()
+    await render_profile(message, session)
+
+
+@router.message(F.text.in_({"➖ خروج از لیدربورد", "➕ حضور در لیدربورد"}))
+async def on_menu_leaderboard_toggle(message: Message, session: AsyncSession) -> None:
+    if message.from_user is None:
+        return
+    user = await users.get_or_create(
+        session, message.from_user.id, message.from_user.username, message.from_user.full_name
+    )
+    desired_opt_out = message.text == "➖ خروج از لیدربورد"
+    if user.leaderboard_opt_out != desired_opt_out:
+        await users.set_leaderboard_opt_out(session, user.id, desired_opt_out)
+        await session.commit()
     await render_profile(message, session)
 
 
@@ -106,15 +151,7 @@ async def on_leaderboard_toggle(callback: CallbackQuery, session: AsyncSession) 
 @router.callback_query(F.data == "leaderboard")
 async def on_leaderboard(callback: CallbackQuery, session: AsyncSession) -> None:
     rows = await users.leaderboard_rows(session)
-    scores = []
-    for _user_id, display_name, timezone_name, bonus_days, bonus_base, days, frozen_days in rows:
-        current = displayed_streak(
-            days, local_today(timezone_name), frozen_days, bonus_days, bonus_base
-        )
-        if current:
-            scores.append((current, (display_name or "کتاب‌خوان").replace("\n", " ")))
-    scores.sort(key=lambda row: (-row[0], row[1]))
-    text = texts.streak_leaderboard(scores)
+    text = _leaderboard_text(rows)
     current_user = await users.get_or_create(
         session,
         callback.from_user.id,
@@ -133,6 +170,33 @@ async def on_leaderboard(callback: CallbackQuery, session: AsyncSession) -> None
                 mesbak_profile is not None and mesbak_profile.enabled,
             ),
         )
+
+
+def _leaderboard_text(rows) -> str:
+    scores = []
+    for _user_id, display_name, timezone_name, bonus_days, bonus_base, days, frozen_days in rows:
+        current = displayed_streak(
+            days, local_today(timezone_name), frozen_days, bonus_days, bonus_base
+        )
+        if current:
+            scores.append((current, (display_name or "کتاب‌خوان").replace("\n", " ")))
+    scores.sort(key=lambda row: (-row[0], row[1]))
+    return texts.streak_leaderboard(scores)
+
+
+@router.message(F.text == "🏅 لیدربورد")
+async def on_menu_leaderboard(message: Message, session: AsyncSession) -> None:
+    if message.from_user is None:
+        return
+    rows = await users.leaderboard_rows(session)
+    user = await users.get_or_create(
+        session, message.from_user.id, message.from_user.username, message.from_user.full_name
+    )
+    await session.commit()
+    await message.answer(
+        _leaderboard_text(rows),
+        reply_markup=keyboards.leaderboard_kb(user.leaderboard_opt_out),
+    )
 
 
 @router.callback_query(F.data == "support")

@@ -2,6 +2,18 @@
 
 Each entry records current intent, not a claim that future work is implemented.
 
+## Temporary execution decision: stabilization-first mode
+
+**Status:** Active during the 2026-11 stabilization pass.
+
+**Context:** The repository includes multiple partially complete feature slices and several status mismatches in the docs. The owner explicitly requires a stabilization-first pass before any new feature work begins.
+
+**Decision:** Continue on the active branch, preserve all current local work, and treat the stabilization audit as the authoritative source of truth for what remains in progress. No new feature work should be started while the stabilization checklist and audit are still open.
+
+**Why:** This keeps the repo aligned with the owner’s safety-first rule and avoids broad feature drift while incomplete slices are still being validated.
+
+**Revisit when:** The stabilization audit and progress log are completed, the main verification pass is green, and the repo is ready for the next feature proposal.
+
 ## D-01 — Existing API; Bot and Current Clients First
 
 **Status:** Existing FastAPI implementation; further API expansion deferred.
@@ -68,11 +80,11 @@ Each entry records current intent, not a claim that future work is implemented.
 
 **Decision:** Admin Telegram IDs come from `ADMIN_TELEGRAM_IDS`; every privileged handler checks the allowlist server-side. Admins bypass the required-channel gate. Adding another admin requires an environment update and restart.
 
-## D-06 — Earned, Bounded Streak Freeze
+## D-06 — Separate, Bounded Streak Freezes
 
-**Status:** Implemented.
+**Status:** Implemented for reading; expanded for Mesbak and admin gifts (S-04).
 
-**Decision:** Users start with zero freezes, earn one after seven consecutive real reading days, and hold at most two. A freeze is spent automatically only when reading resumes after exactly one missed day and the previous day was a real reading day. Freeze days preserve continuity but are not readings and cannot qualify for another reward.
+**Decision:** Reading and Mesbak have independent Freeze inventories, each starting at zero with a cap of three. Reading earns one after seven consecutive real reading days; Mesbak earns one after seven consecutive days with its daily goal completed. Each habit may automatically protect exactly one missed local day when activity resumes the next day and the preceding day was real activity. Protected days preserve streak continuity but never create reading/completion records or count toward another Freeze reward. Admin gifts are separate auditable events, share the matching habit balance, top up only to the cap, and require a cohort preview plus confirmation. A reading gift targets current users; a Mesbak gift targets active Mesbak members. Gifts send no user broadcast.
 
 ## D-07 — Durable Single-Process Broadcast
 

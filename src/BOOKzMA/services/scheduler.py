@@ -16,6 +16,7 @@ from BOOKzMA import keyboards, texts
 from BOOKzMA.repositories import readings
 from BOOKzMA.repositories import streak_freezes
 from BOOKzMA.repositories import reminders as reminders_repo
+from BOOKzMA.services.reminder_cleanup import process_pending, request_cleanup
 from BOOKzMA.services.streak import displayed_streak
 from BOOKzMA.utils import local_now
 
@@ -41,6 +42,7 @@ async def reminder_loop(bot: Bot, session_pool: async_sessionmaker[AsyncSession]
 
 async def send_due(bot: Bot, session_pool: async_sessionmaker[AsyncSession]) -> None:
     async with session_pool() as session:
+        await process_pending(bot, session)
         rows = await reminders_repo.list_all_with_users(session)
         blocked: set[int] = set()
 
@@ -80,7 +82,9 @@ async def send_due(bot: Bot, session_pool: async_sessionmaker[AsyncSession]) -> 
             reminder.attempt_count += 1
             await session.commit()
             try:
-                await bot.send_message(user.id, text, reply_markup=keyboards.reminder_push_kb())
+                sent_message = await bot.send_message(
+                    user.id, text, reply_markup=keyboards.reminder_push_kb()
+                )
             except TelegramForbiddenError:
                 blocked.add(user.id)
                 await reminders_repo.delete_all_for_user(session, user.id)
@@ -104,5 +108,10 @@ async def send_due(bot: Bot, session_pool: async_sessionmaker[AsyncSession]) -> 
                 continue
             reminder.last_sent_on = today
             reminder.retry_after_until = None
+            await reminders_repo.record_message(
+                session, user.id, "reading", reminder.id, today, sent_message.message_id
+            )
             await session.commit()
+            if await readings.has_read(session, user.id, today):
+                await request_cleanup(bot, session, user.id, "reading", today)
             await asyncio.sleep(0.05)

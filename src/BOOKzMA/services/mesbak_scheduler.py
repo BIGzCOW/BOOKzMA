@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from BOOKzMA import keyboards, texts
 from BOOKzMA.repositories import mesbak as mesbak_repo
+from BOOKzMA.repositories import reminders as reminders_repo
+from BOOKzMA.services.reminder_cleanup import process_pending, request_cleanup
 from BOOKzMA.services.mesbak import effective_goal, reminder_due
 from BOOKzMA.utils import local_now
 
@@ -41,6 +43,7 @@ async def send_due_mesbak_reminders(
     bot: Bot, session_pool: async_sessionmaker[AsyncSession]
 ) -> None:
     async with session_pool() as session:
+        await process_pending(bot, session)
         rows = await mesbak_repo.due_reminders(session)
         completed_slots: dict[tuple[int, object], set[int]] = {}
         blocked: set[int] = set()
@@ -85,7 +88,7 @@ async def send_due_mesbak_reminders(
             reminder.attempt_count += 1
             await session.commit()
             try:
-                await bot.send_message(
+                sent_message = await bot.send_message(
                     user.id,
                     texts.mesbak_reminder(reminder.slot),
                     reply_markup=keyboards.mesbak_reminder_push_kb(
@@ -112,5 +115,23 @@ async def send_due_mesbak_reminders(
             else:
                 reminder.last_sent_on = today
                 reminder.retry_after_until = None
+                await reminders_repo.record_message(
+                    session,
+                    user.id,
+                    "mesbak",
+                    reminder.slot,
+                    today,
+                    sent_message.message_id,
+                )
                 await session.commit()
+                sent_entries = await mesbak_repo.entries_for_day(session, user.id, today)
+                if reminder.slot in sent_entries:
+                    await request_cleanup(
+                        bot,
+                        session,
+                        user.id,
+                        "mesbak",
+                        today,
+                        schedule_id=None if len(sent_entries) >= goal else reminder.slot,
+                    )
                 await asyncio.sleep(0.05)

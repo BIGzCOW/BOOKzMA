@@ -14,9 +14,12 @@ from BOOKzMA.handlers.admin import (
     _valid_broadcast_url,
     is_admin,
     on_admin_stats,
+    on_freeze_gift_amount,
+    on_freeze_gift_confirm,
 )
 from BOOKzMA.handlers.common import show
 from BOOKzMA.middlewares.membership import MembershipMiddleware
+from BOOKzMA.repositories.freeze_gifts import _grant_units
 
 
 def test_admin_authorization_uses_configured_allowlist():
@@ -24,6 +27,12 @@ def test_admin_authorization_uses_configured_allowlist():
 
     assert is_admin(123, settings)
     assert not is_admin(789, settings)
+
+
+def test_freeze_gifts_only_top_up_to_the_three_unit_cap():
+    assert _grant_units(2, 0) == 2
+    assert _grant_units(2, 2) == 1
+    assert _grant_units(2, 3) == 0
 
 
 def test_campaign_callback_ids_are_strictly_parsed():
@@ -93,6 +102,101 @@ def test_non_admin_cannot_call_admin_stats_callback():
         await on_admin_stats(callback, None, settings)
 
         assert answers == [("دسترسی نداری.", True)]
+
+    asyncio.run(run_test())
+
+
+def test_admin_freeze_gift_previews_selected_habit_before_confirmation(monkeypatch):
+    async def run_test():
+        sent = []
+        created = []
+        settings = Settings(bot_token=SecretStr("test"), admin_telegram_ids="123")
+        preview = SimpleNamespace(
+            operation_id=9,
+            habit="mesbak",
+            requested_amount=2,
+            recipients=5,
+            units=6,
+            capped=1,
+            skipped=0,
+        )
+
+        async def create_preview(session, admin_id, habit, amount):
+            created.append((admin_id, habit, amount))
+            return preview
+
+        async def answer(text, reply_markup=None):
+            sent.append((text, reply_markup))
+
+        async def get_data():
+            return {"freeze_habit": "mesbak"}
+
+        async def clear():
+            return None
+
+        async def commit():
+            return None
+
+        monkeypatch.setattr("BOOKzMA.handlers.admin.freeze_gifts.create_preview", create_preview)
+        message = SimpleNamespace(
+            from_user=SimpleNamespace(id=123),
+            text="۲",
+            answer=answer,
+        )
+        state = SimpleNamespace(get_data=get_data, clear=clear)
+        await on_freeze_gift_amount(message, SimpleNamespace(commit=commit), state, settings)
+
+        assert created == [(123, "mesbak", 2)]
+        assert "اعلان برای کاربران ارسال نمی‌شود" in sent[0][0]
+        assert sent[0][1].inline_keyboard[0][0].callback_data == "admin:freeze:confirm:9"
+
+    asyncio.run(run_test())
+
+
+def test_freeze_gift_confirmation_is_server_authorized_and_id_scoped(monkeypatch):
+    async def run_test():
+        calls = []
+        answers = []
+        settings = Settings(bot_token=SecretStr("test"), admin_telegram_ids="123")
+
+        async def confirm(session, admin_id, operation_id, now):
+            calls.append((admin_id, operation_id))
+            return SimpleNamespace(
+                status="completed",
+                operation_id=operation_id,
+                habit="reading",
+                requested_amount=1,
+                recipients=3,
+                units=2,
+                capped=1,
+                    skipped=0,
+            )
+
+        async def commit():
+            return None
+
+        async def answer(text=None, show_alert=False):
+            answers.append((text, show_alert))
+
+        monkeypatch.setattr("BOOKzMA.handlers.admin.freeze_gifts.confirm", confirm)
+        callback = SimpleNamespace(
+            from_user=SimpleNamespace(id=123),
+            data="admin:freeze:confirm:7",
+            answer=answer,
+            message=None,
+        )
+        await on_freeze_gift_confirm(callback, SimpleNamespace(commit=commit), settings)
+        assert calls == [(123, 7)]
+
+        denied = SimpleNamespace(
+            from_user=SimpleNamespace(id=456),
+            data="admin:freeze:confirm:7",
+            answer=answer,
+            message=None,
+        )
+        await on_freeze_gift_confirm(denied, SimpleNamespace(commit=commit), settings)
+        assert calls == [(123, 7)]
+        assert answers[-1] == ("دسترسی نداری.", True)
 
     asyncio.run(run_test())
 

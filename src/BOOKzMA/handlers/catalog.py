@@ -30,6 +30,7 @@ from BOOKzMA.handlers.common import show
 from BOOKzMA.repositories import book_catalog, books as books_repo, users
 from BOOKzMA.services.catalog_text import (
     clean_caption,
+    is_generic_search_query,
     normalize_catalog_text,
     strip_channel_handles,
 )
@@ -166,6 +167,9 @@ async def _search_page(
     query: str,
     offset: int,
 ) -> None:
+    if is_generic_search_query(query):
+        await show(event, texts.CATALOG_QUERY_TOO_BROAD, keyboards.catalog_search_cancel_kb())
+        return
     hits, has_next = await book_catalog.search(
         session, query, offset=offset, limit=CATALOG_PAGE_SIZE
     )
@@ -210,10 +214,17 @@ async def on_catalog_query(
     if len(query) < 2:
         await message.answer(texts.CATALOG_BAD_QUERY)
         return
+    if is_generic_search_query(query):
+        await message.answer(texts.CATALOG_QUERY_TOO_BROAD)
+        return
     await state.update_data(catalog_query=query)
     await state.set_state(None)
     try:
         await _search_page(message, session, query, 0)
+    except TimeoutError:
+        await session.rollback()
+        log.warning("book catalog search timed out for query=%s", query)
+        await message.answer(texts.CATALOG_QUERY_TIMEOUT)
     except Exception as error:
         await session.rollback()
         log.warning("book catalog search failed (%s)", type(error).__name__)
@@ -237,6 +248,10 @@ async def on_catalog_page(
     await callback.answer()
     try:
         await _search_page(callback, session, query, offset)
+    except TimeoutError:
+        await session.rollback()
+        log.warning("book catalog page timed out for query=%s", query)
+        await show(callback, texts.CATALOG_QUERY_TIMEOUT, keyboards.catalog_search_cancel_kb())
     except Exception as error:
         await session.rollback()
         log.warning("book catalog page failed (%s)", type(error).__name__)

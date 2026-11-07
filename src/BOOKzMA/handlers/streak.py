@@ -1,4 +1,4 @@
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,18 +6,29 @@ from BOOKzMA import texts
 from BOOKzMA.handlers.common import offer_buddy_nudge, render_home
 from BOOKzMA.repositories import users
 from BOOKzMA.services.reading_registration import register_reading
+from BOOKzMA.services.reminder_cleanup import request_cleanup
 from BOOKzMA.utils import local_today
 
 router = Router()
 
 
 @router.callback_query(F.data == "read")
-async def on_read(callback: CallbackQuery, session: AsyncSession) -> None:
+async def on_read(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     tg = callback.from_user
     user = await users.get_or_create(session, tg.id, tg.username, tg.full_name)
     today = local_today(user.timezone)
     registration = await register_reading(session, user, today)
     await session.commit()
+    await request_cleanup(
+        bot,
+        session,
+        user.id,
+        "reading",
+        today,
+        keep_message_id=(
+            callback.message.message_id if isinstance(callback.message, Message) else None
+        ),
+    )
 
     toast = texts.read_toast(
         registration.streak,

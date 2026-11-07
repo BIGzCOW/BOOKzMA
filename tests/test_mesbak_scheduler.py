@@ -69,7 +69,19 @@ def _patch_clock_and_rows(monkeypatch, rows, entries):
     async def no_sleep(_seconds):
         return None
 
+    async def no_pending(*_args, **_kwargs):
+        return 0
+
+    async def record_message(*_args):
+        return None
+
+    async def request_cleanup(*_args, **_kwargs):
+        return None
+
     monkeypatch.setattr(mesbak_scheduler, "local_now", lambda _timezone: NOW)
+    monkeypatch.setattr(mesbak_scheduler, "process_pending", no_pending)
+    monkeypatch.setattr(mesbak_scheduler.reminders_repo, "record_message", record_message)
+    monkeypatch.setattr(mesbak_scheduler, "request_cleanup", request_cleanup)
     monkeypatch.setattr(mesbak_scheduler.mesbak_repo, "due_reminders", due_reminders)
     monkeypatch.setattr(
         mesbak_scheduler.mesbak_repo, "entries_for_day", entries_for_day
@@ -85,6 +97,7 @@ def test_scheduler_sends_due_occurrence_and_marks_it_sent(monkeypatch):
 
         async def send_message(*args, **kwargs):
             sent.append((args, kwargs))
+            return SimpleNamespace(message_id=100 + len(sent))
 
         session = Session()
         await mesbak_scheduler.send_due_mesbak_reminders(
@@ -108,6 +121,7 @@ def test_scheduler_skips_completed_goal(monkeypatch):
 
         async def send_message(*args, **kwargs):
             sent.append((args, kwargs))
+            return SimpleNamespace(message_id=100 + len(sent))
 
         session = Session()
         await mesbak_scheduler.send_due_mesbak_reminders(
@@ -117,6 +131,39 @@ def test_scheduler_skips_completed_goal(monkeypatch):
         assert sent == []
         assert row[0].last_sent_on == TODAY
         assert session.commits == 1
+
+    asyncio.run(run_test())
+
+
+def test_scheduler_cleans_message_if_goal_completes_during_send(monkeypatch):
+    async def run_test():
+        row = _row(slot=1, goal=1)
+        _patch_clock_and_rows(monkeypatch, [row], set())
+        entry_checks = 0
+        cleanup = []
+
+        async def entries_for_day(_session, _user_id, _day):
+            nonlocal entry_checks
+            entry_checks += 1
+            return set() if entry_checks == 1 else {1}
+
+        async def request_cleanup(*args, **kwargs):
+            cleanup.append((args, kwargs))
+
+        async def send_message(*_args, **_kwargs):
+            return SimpleNamespace(message_id=123)
+
+        monkeypatch.setattr(mesbak_scheduler.mesbak_repo, "entries_for_day", entries_for_day)
+        monkeypatch.setattr(mesbak_scheduler, "request_cleanup", request_cleanup)
+        session = Session()
+        await mesbak_scheduler.send_due_mesbak_reminders(
+            SimpleNamespace(send_message=send_message), SessionPool(session)
+        )
+
+        assert row[0].last_sent_on == TODAY
+        assert len(cleanup) == 1
+        assert cleanup[0][0][2:] == (77, "mesbak", TODAY)
+        assert cleanup[0][1]["schedule_id"] is None
 
     asyncio.run(run_test())
 

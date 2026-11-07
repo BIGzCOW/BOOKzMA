@@ -47,14 +47,14 @@ async def redeem_start_invite(
 
 
 async def _render_buddy_list(
-    callback: CallbackQuery, session: AsyncSession, user_id: int
+    event: Message | CallbackQuery, session: AsyncSession, user_id: int
 ) -> None:
     rows = await mesbak_repo.buddy_rows(session, user_id)
     display_rows = [(pair_id, name) for pair_id, _user_id, name, _pair_type in rows]
     queued = await mesbak_repo.is_random_buddy_queued(session, user_id)
     await session.commit()
     await show(
-        callback,
+        event,
         texts.mesbak_buddies(display_rows, queued),
         keyboards.mesbak_buddy_list_kb(display_rows, queued),
     )
@@ -119,6 +119,24 @@ async def on_league(callback: CallbackQuery, session: AsyncSession) -> None:
     )
 
 
+@router.message(F.text == "🏆 لیگ مسباک")
+async def on_league_menu(message: Message, session: AsyncSession) -> None:
+    if message.from_user is None:
+        return
+    active = await _active_user(session, message.from_user)
+    if active is None:
+        await message.answer(texts.mesbak_INACTIVE)
+        return
+    user, today = active
+    profile = await mesbak_repo.get_profile(session, user.id, today)
+    rows = await mesbak_repo.league_rows(session, today) if profile.league_opt_in else []
+    await session.commit()
+    await message.answer(
+        texts.mesbak_league(rows, profile.league_opt_in),
+        reply_markup=keyboards.mesbak_league_kb(profile.league_opt_in),
+    )
+
+
 @router.callback_query(F.data == "mesbak:league:toggle")
 async def on_league_toggle(callback: CallbackQuery, session: AsyncSession) -> None:
     active = await _active_user(session, callback.from_user)
@@ -151,6 +169,16 @@ async def on_buddies(callback: CallbackQuery, session: AsyncSession) -> None:
         return
     await callback.answer()
     await _render_buddy_list(callback, session, callback.from_user.id)
+
+
+@router.message(F.text == "🤝 رفیق‌های مسباک")
+async def on_buddies_menu(message: Message, session: AsyncSession) -> None:
+    if message.from_user is None:
+        return
+    if await _active_user(session, message.from_user) is None:
+        await message.answer(texts.mesbak_INACTIVE)
+        return
+    await _render_buddy_list(message, session, message.from_user.id)
 
 
 @router.callback_query(F.data == "mesbak:buddy:random:join")
@@ -306,9 +334,25 @@ async def on_buddy_nudge_all(
             failed += 1
 
     if isinstance(callback.message, Message):
-        await callback.message.answer(
-            texts.mesbak_buddy_nudge_summary(sent, already_done, already_nudged, failed)
-        )
+        summary = texts.mesbak_buddy_nudge_summary(sent, already_done, already_nudged, failed)
+        if callback.message.text == texts.MESBAK_BUDDY_NUDGE_PROMPT:
+            try:
+                await callback.message.edit_text(summary)
+            except TelegramAPIError:
+                await callback.message.answer(summary)
+        else:
+            await callback.message.answer(summary)
+
+
+@router.callback_query(F.data == "mesbak:buddy:nudge:dismiss")
+async def on_dismiss_buddy_nudge(callback: CallbackQuery) -> None:
+    if not isinstance(callback.message, Message) or (
+        callback.message.text != texts.MESBAK_BUDDY_NUDGE_PROMPT
+    ):
+        await callback.answer(texts.INVALID_ACTION, show_alert=True)
+        return
+    await callback.answer()
+    await show(callback, texts.MESBAK_BUDDY_NUDGE_DISMISSED, None)
 
 
 @router.callback_query(F.data.startswith("mesbak:buddy:nudge:"))

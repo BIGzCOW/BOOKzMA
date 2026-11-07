@@ -215,6 +215,21 @@ async def get_progress(
     return BookProgress(book=row[0], pages_read=int(row[1])) if row else None
 
 
+async def set_note(
+    session: AsyncSession, user_id: int, book_id: int, note: str | None
+) -> bool:
+    book = await session.scalar(
+        select(UserBook)
+        .where(UserBook.id == book_id, UserBook.user_id == user_id)
+        .with_for_update()
+    )
+    if book is None:
+        return False
+    book.note = note
+    await session.flush()
+    return True
+
+
 async def log_pages(
     session: AsyncSession,
     user_id: int,

@@ -74,7 +74,12 @@ def session():
 
 def book(book_id=1):
     return SimpleNamespace(
-        id=book_id, title="Synthetic book", author=None, total_pages=100, status="reading"
+        id=book_id,
+        title="Synthetic book",
+        author=None,
+        note=None,
+        total_pages=100,
+        status="reading",
     )
 
 
@@ -541,6 +546,11 @@ def test_multiple_page_sessions_keep_progress_and_register_one_reading_day(
     nudge = AsyncMock()
     monkeypatch.setattr(books, "offer_buddy_nudge", nudge)
 
+    async def no_cleanup(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(books, "request_cleanup", no_cleanup)
+
     async def run():
         state = dispatcher.fsm.get_context(bot=bot, chat_id=777, user_id=777)
         await state.clear()
@@ -557,6 +567,88 @@ def test_multiple_page_sessions_keep_progress_and_register_one_reading_day(
         nudge.assert_awaited_once()
         assert "۲۵ از ۱۰۰" in replies.call_args.args[0]
         assert texts.BOOK_STREAK_ALREADY_RECORDED in replies.call_args.args[0]
+        assert await state.get_state() is None
+
+    asyncio.run(run())
+
+
+def test_book_note_edit_saves_trimmed_text_for_the_current_owner(
+    dispatcher, telegram, monkeypatch
+):
+    bot, _replies = telegram
+    item = book()
+    database = session()
+    update_note = AsyncMock(return_value=True)
+    render_note = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        books.books_repo, "get_progress", AsyncMock(return_value=BookProgress(item, 0))
+    )
+    monkeypatch.setattr(books.books_repo, "set_note", update_note)
+    monkeypatch.setattr(books, "render_book_note", render_note)
+
+    async def run():
+        state = dispatcher.fsm.get_context(bot=bot, chat_id=777, user_id=777)
+        await state.clear()
+        await dispatcher.feed_update(
+            bot,
+            Update(update_id=1, callback_query=callback("book:note:edit:1")),
+            session=database,
+        )
+        assert await state.get_state() == books.EditBookNote.waiting_for_note.state
+        await dispatcher.feed_update(
+            bot,
+            Update(update_id=2, message=message("  my <b>note</b>  ")),
+            session=database,
+        )
+
+        update_note.assert_awaited_once_with(database, 777, 1, "my <b>note</b>")
+        render_note.assert_awaited_once()
+        assert render_note.await_args.args[1:] == (database, 777, 1)
+        assert await state.get_state() is None
+
+    asyncio.run(run())
+
+
+def test_invalid_note_keeps_form_open_and_cancel_clears_it(
+    dispatcher, telegram, monkeypatch
+):
+    bot, _replies = telegram
+    database = session()
+    update_note = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        books.books_repo,
+        "get_progress",
+        AsyncMock(return_value=BookProgress(book(), 0)),
+    )
+    monkeypatch.setattr(books.books_repo, "set_note", update_note)
+    monkeypatch.setattr(books, "render_book_note", AsyncMock())
+
+    async def run():
+        state = dispatcher.fsm.get_context(bot=bot, chat_id=777, user_id=777)
+        await state.clear()
+        await dispatcher.feed_update(
+            bot,
+            Update(update_id=1, callback_query=callback("book:note:edit:1")),
+            session=database,
+        )
+        await dispatcher.feed_update(
+            bot,
+            Update(update_id=2, message=message("   ")),
+            session=database,
+        )
+        await dispatcher.feed_update(
+            bot,
+            Update(update_id=3, message=message("x" * 3501)),
+            session=database,
+        )
+        assert await state.get_state() == books.EditBookNote.waiting_for_note.state
+        update_note.assert_not_awaited()
+
+        await dispatcher.feed_update(
+            bot,
+            Update(update_id=4, callback_query=callback("book:note:1")),
+            session=database,
+        )
         assert await state.get_state() is None
 
     asyncio.run(run())

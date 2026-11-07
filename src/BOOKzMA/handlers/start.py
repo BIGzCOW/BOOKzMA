@@ -114,24 +114,42 @@ async def cmd_start(
             await message.answer(texts.WELCOME_BACK)
         await render_home(message, session, tg)
         await message.answer(
-            "از منوی پایین استفاده کن.",
+            texts.MAIN_MENU_HINT,
             reply_markup=keyboards.menu_kb(tg.id in settings.admin_ids),
         )
 
 @router.callback_query(F.data == "home")
-async def on_home(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
+async def on_home(
+    callback: CallbackQuery, session: AsyncSession, state: FSMContext, settings: Settings
+) -> None:
     await state.clear()
     await callback.answer()
     await render_home(callback, session, callback.from_user)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            texts.MAIN_MENU_HINT,
+            reply_markup=keyboards.menu_kb(callback.from_user.id in settings.admin_ids),
+        )
 
 
 @router.message(F.text == "🏠 خانه")
 async def on_menu_home(
-    message: Message, session: AsyncSession, state: FSMContext
+    message: Message, session: AsyncSession, state: FSMContext, settings: Settings
 ) -> None:
     await state.clear()
     if message.from_user:
         await render_home(message, session, message.from_user)
+        await message.answer(
+            texts.MAIN_MENU_HINT,
+            reply_markup=keyboards.menu_kb(message.from_user.id in settings.admin_ids),
+        )
+
+
+@router.message(F.text == "🧭 بیشتر")
+async def on_more(message: Message, state: FSMContext, settings: Settings) -> None:
+    await state.clear()
+    is_admin = bool(message.from_user and message.from_user.id in settings.admin_ids)
+    await message.answer(texts.MORE_MENU, reply_markup=keyboards.more_menu_kb(is_admin))
 
 
 @router.callback_query(F.data == "check_join")

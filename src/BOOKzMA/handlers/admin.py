@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from aiogram import F, Router
@@ -12,15 +13,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from BOOKzMA import keyboards, texts
 from BOOKzMA.config import Settings
 from BOOKzMA.handlers.common import show
-from BOOKzMA.repositories import analytics, broadcasts
+from BOOKzMA.repositories import analytics, broadcasts, freeze_gifts
 from BOOKzMA.services import backup as backup_service
 from BOOKzMA.services.backup import BackupError
-from BOOKzMA.utils import local_today
+from BOOKzMA.utils import local_today, parse_positive_int
 
 router = Router()
 log = logging.getLogger(__name__)
 MAX_BROADCAST_LENGTH = 3500
 RESTORE_INDEX_RE = re.compile(r"admin:restore_(ask|ready):(\d{1,3})")
+FREEZE_GIFT_CALLBACK_RE = re.compile(r"admin:freeze:(confirm|cancel):(\d{1,10})")
 
 
 class NewBroadcast(StatesGroup):
@@ -30,6 +32,20 @@ class NewBroadcast(StatesGroup):
 
 class BackupRestore(StatesGroup):
     waiting_for_confirm = State()
+
+
+class FreezeGift(StatesGroup):
+    waiting_for_amount = State()
+
+
+ADMIN_FORM_STATES = frozenset(
+    state.state
+    for state in (
+        *NewBroadcast.__all_states__,
+        *BackupRestore.__all_states__,
+        *FreezeGift.__all_states__,
+    )
+)
 
 
 def is_admin(user_id: int, settings: Settings) -> bool:
@@ -70,6 +86,147 @@ async def on_admin_stats(
     await show_admin(callback, session)
 
 
+@router.callback_query(F.data == "admin:freeze:gift")
+async def on_freeze_gift_start(
+    callback: CallbackQuery, state: FSMContext, settings: Settings
+) -> None:
+    if not _authorize(callback.from_user.id, settings, "start_freeze_gift"):
+        await callback.answer("دسترسی نداری.", show_alert=True)
+        return
+    await state.clear()
+    await callback.answer()
+    await show(callback, texts.FREEZE_GIFT_SELECT, keyboards.freeze_gift_habit_kb())
+
+
+@router.callback_query(F.data.startswith("admin:freeze:habit:"))
+async def on_freeze_gift_habit(
+    callback: CallbackQuery, state: FSMContext, settings: Settings
+) -> None:
+    if not _authorize(callback.from_user.id, settings, "select_freeze_gift_habit"):
+        await callback.answer("دسترسی نداری.", show_alert=True)
+        return
+    match = re.fullmatch(r"admin:freeze:habit:(reading|mesbak)", callback.data or "")
+    if match is None:
+        await callback.answer(texts.INVALID_ACTION, show_alert=True)
+        return
+    await state.clear()
+    await state.update_data(freeze_habit=match[1])
+    await state.set_state(FreezeGift.waiting_for_amount)
+    await callback.answer()
+    if isinstance(callback.message, Message):
+        await callback.message.answer(texts.FREEZE_GIFT_ASK_AMOUNT)
+
+
+@router.message(
+    FreezeGift.waiting_for_amount, F.text, flags={"book_form_input": True}
+)
+async def on_freeze_gift_amount(
+    message: Message, session: AsyncSession, state: FSMContext, settings: Settings
+) -> None:
+    if message.from_user is None or not _authorize(
+        message.from_user.id, settings, "preview_freeze_gift"
+    ):
+        await state.clear()
+        return
+    amount = parse_positive_int(message.text or "", freeze_gifts.MAX_GIFT_AMOUNT)
+    if amount is None:
+        await message.answer(texts.FREEZE_GIFT_BAD_AMOUNT)
+        return
+    habit = (await state.get_data()).get("freeze_habit")
+    if habit not in {"reading", "mesbak"}:
+        await state.clear()
+        await message.answer(texts.INVALID_ACTION)
+        return
+    preview = await freeze_gifts.create_preview(
+        session, message.from_user.id, habit, amount
+    )
+    await session.commit()
+    await state.clear()
+    await message.answer(
+        texts.freeze_gift_preview(
+            preview.habit,
+            preview.requested_amount,
+            preview.recipients,
+            preview.units,
+            preview.capped,
+            preview.skipped,
+        ),
+        reply_markup=keyboards.freeze_gift_confirm_kb(preview.operation_id),
+    )
+
+
+@router.callback_query(F.data.startswith("admin:freeze:confirm:"))
+async def on_freeze_gift_confirm(
+    callback: CallbackQuery, session: AsyncSession, settings: Settings
+) -> None:
+    if not _authorize(callback.from_user.id, settings, "confirm_freeze_gift"):
+        await callback.answer("دسترسی نداری.", show_alert=True)
+        return
+    match = FREEZE_GIFT_CALLBACK_RE.fullmatch(callback.data or "")
+    if match is None or match[1] != "confirm" or int(match[2]) > 2_147_483_647:
+        await callback.answer(texts.INVALID_ACTION, show_alert=True)
+        return
+    result = await freeze_gifts.confirm(
+        session,
+        callback.from_user.id,
+        int(match[2]),
+        datetime.now(timezone.utc),
+    )
+    if result is None:
+        await callback.answer(texts.INVALID_ACTION, show_alert=True)
+        return
+    await session.commit()
+    await callback.answer()
+    if result.status == "changed":
+        await show(
+            callback,
+            texts.freeze_gift_preview(
+                result.habit,
+                result.requested_amount,
+                result.recipients,
+                result.units,
+                result.capped,
+                result.skipped,
+                changed=True,
+            ),
+            keyboards.freeze_gift_confirm_kb(result.operation_id),
+        )
+    elif result.status == "completed":
+        await show(
+            callback,
+            texts.freeze_gift_result(
+                result.habit, result.recipients, result.units, result.capped
+                , result.skipped
+            ),
+            keyboards.admin_kb(),
+        )
+    else:
+        await show(callback, texts.INVALID_ACTION, keyboards.admin_kb())
+
+
+@router.callback_query(F.data.startswith("admin:freeze:cancel:"))
+async def on_freeze_gift_cancel(
+    callback: CallbackQuery, session: AsyncSession, settings: Settings
+) -> None:
+    if not _authorize(callback.from_user.id, settings, "cancel_freeze_gift"):
+        await callback.answer("دسترسی نداری.", show_alert=True)
+        return
+    match = FREEZE_GIFT_CALLBACK_RE.fullmatch(callback.data or "")
+    if match is None or match[1] != "cancel" or int(match[2]) > 2_147_483_647:
+        await callback.answer(texts.INVALID_ACTION, show_alert=True)
+        return
+    cancelled = await freeze_gifts.cancel(
+        session, callback.from_user.id, int(match[2])
+    )
+    await session.commit()
+    await callback.answer()
+    await show(
+        callback,
+        texts.FREEZE_GIFT_CANCELLED if cancelled else texts.INVALID_ACTION,
+        keyboards.admin_kb(),
+    )
+
+
 @router.callback_query(F.data == "admin:broadcast")
 async def on_broadcast_start(
     callback: CallbackQuery, state: FSMContext, settings: Settings
@@ -107,7 +264,11 @@ async def on_broadcast_audience(
         )
 
 
-@router.message(NewBroadcast.waiting_for_content, F.text | F.photo | F.video)
+@router.message(
+    NewBroadcast.waiting_for_content,
+    F.text | F.photo | F.video,
+    flags={"book_form_input": True},
+)
 async def on_broadcast_content(
     message: Message, session: AsyncSession, state: FSMContext, settings: Settings
 ) -> None:
@@ -150,7 +311,9 @@ def _valid_broadcast_url(value: str) -> bool:
         return False
 
 
-@router.message(NewBroadcast.waiting_for_link, F.text)
+@router.message(
+    NewBroadcast.waiting_for_link, F.text, flags={"book_form_input": True}
+)
 async def on_broadcast_link(
     message: Message, session: AsyncSession, state: FSMContext, settings: Settings
 ) -> None:
@@ -389,7 +552,9 @@ async def on_restore_ready(
         )
 
 
-@router.message(BackupRestore.waiting_for_confirm, F.text)
+@router.message(
+    BackupRestore.waiting_for_confirm, F.text, flags={"book_form_input": True}
+)
 async def on_restore_confirm(
     message: Message, state: FSMContext, settings: Settings
 ) -> None:

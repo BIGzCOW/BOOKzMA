@@ -144,7 +144,9 @@ async def leaderboard_rows(
         return []
     freeze_result = await session.execute(
         select(StreakFreeze.user_id, StreakFreeze.day).where(
-            StreakFreeze.kind == "used", StreakFreeze.user_id.in_(user_ids)
+            StreakFreeze.kind == "used",
+            StreakFreeze.habit == "reading",
+            StreakFreeze.user_id.in_(user_ids),
         )
     )
     for user_id, day in freeze_result:

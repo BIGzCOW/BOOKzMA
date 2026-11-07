@@ -1,6 +1,6 @@
 import re
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -8,12 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from BOOKzMA import keyboards, texts
 from BOOKzMA.config import Settings
-from BOOKzMA.constants import MAX_BOOK_PAGES
+from BOOKzMA.constants import MAX_BOOK_NOTE_LENGTH, MAX_BOOK_PAGES
 from BOOKzMA.handlers.common import offer_buddy_nudge, show
 from BOOKzMA.repositories import books as books_repo
 from BOOKzMA.repositories import users
 from BOOKzMA.services.books import normalize_author, normalize_title
 from BOOKzMA.services.reading_registration import register_reading
+from BOOKzMA.services.reminder_cleanup import request_cleanup
 from BOOKzMA.utils import local_today, parse_positive_int
 
 router = Router()
@@ -29,6 +30,7 @@ PAGE_SIZE = 8
 BOOK_CALLBACK_RE = re.compile(
     r"book:(open|log|archive|archive_go|restore|set_pages):(\d{1,10})"
 )
+BOOK_NOTE_CALLBACK_RE = re.compile(r"book:note:(?:(edit|clear):)?(\d{1,10})")
 BOOK_PAGE_RE = re.compile(r"books:p:(\d{1,15})")
 BOOK_ARCHIVE_PAGE_RE = re.compile(r"books:archive:p:(\d{1,15})")
 
@@ -47,9 +49,18 @@ class SetBookPages(StatesGroup):
     waiting_for_total_pages = State()
 
 
+class EditBookNote(StatesGroup):
+    waiting_for_note = State()
+
+
 BOOK_FORM_STATES = frozenset(
     state.state
-    for state in (*AddBook.__all_states__, *LogPages.__all_states__, *SetBookPages.__all_states__)
+    for state in (
+        *AddBook.__all_states__,
+        *LogPages.__all_states__,
+        *SetBookPages.__all_states__,
+        *EditBookNote.__all_states__,
+    )
 )
 
 
@@ -147,10 +158,30 @@ async def render_book(
     return True
 
 
+async def render_book_note(
+    event: Message | CallbackQuery,
+    session: AsyncSession,
+    user_id: int,
+    book_id: int,
+) -> bool:
+    progress = await books_repo.get_progress(session, user_id, book_id)
+    if progress is None:
+        return False
+    await show(
+        event,
+        texts.book_note(progress.book.title, progress.book.note),
+        keyboards.book_note_kb(book_id, progress.book.note is not None),
+    )
+    return True
+
+
 def _book_detail_keyboard(book, settings: Settings | None):
     if settings is None:
         return keyboards.book_detail_with_pages_kb(
-            book.id, book.status, has_page_count=book.total_pages is not None
+            book.id,
+            book.status,
+            has_page_count=book.total_pages is not None,
+            has_note=book.note is not None,
         )
     catalog_message_id = book.catalog_message_id
     catalog_url = (
@@ -163,6 +194,7 @@ def _book_detail_keyboard(book, settings: Settings | None):
             book.id,
             book.status,
             has_page_count=book.total_pages is not None,
+            has_note=book.note is not None,
             catalog_message_id=catalog_message_id,
             catalog_url=catalog_url,
         )
@@ -325,6 +357,71 @@ async def on_book_open(
     await callback.answer()
 
 
+@private_router.callback_query(F.data.startswith("book:note:"))
+async def on_book_note(
+    callback: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    match = BOOK_NOTE_CALLBACK_RE.fullmatch(callback.data or "")
+    if match is None or int(match[2]) > 2_147_483_647:
+        await callback.answer(texts.INVALID_ACTION, show_alert=True)
+        return
+    book_id = int(match[2])
+    progress = await books_repo.get_progress(session, callback.from_user.id, book_id)
+    if progress is None:
+        await callback.answer(texts.BOOK_NOT_FOUND, show_alert=True)
+        return
+    action = match[1]
+    if action == "edit":
+        await state.clear()
+        await state.set_state(EditBookNote.waiting_for_note)
+        await state.update_data(book_id=book_id)
+        await callback.answer()
+        await show(
+            callback,
+            texts.BOOK_ASK_NOTE,
+            keyboards.book_note_cancel_kb(book_id),
+        )
+        return
+    await state.clear()
+    if action == "clear":
+        if not await books_repo.set_note(session, callback.from_user.id, book_id, None):
+            await callback.answer(texts.BOOK_NOT_FOUND, show_alert=True)
+            return
+        await session.commit()
+        await callback.answer(texts.BOOK_NOTE_CLEARED)
+        await render_book_note(callback, session, callback.from_user.id, book_id)
+        return
+    await callback.answer()
+    await render_book_note(callback, session, callback.from_user.id, book_id)
+
+
+@form_router.message(
+    EditBookNote.waiting_for_note, F.text, flags={"book_form_input": True}
+)
+async def on_book_note_text(
+    message: Message, session: AsyncSession, state: FSMContext
+) -> None:
+    note = (message.text or "").strip()
+    if not note or len(note) > MAX_BOOK_NOTE_LENGTH:
+        await message.answer(texts.BOOK_BAD_NOTE)
+        return
+    if message.from_user is None:
+        return
+    data = await state.get_data()
+    book_id = data.get("book_id")
+    if not isinstance(book_id, int):
+        await state.clear()
+        await message.answer(texts.BOOK_FLOW_LOST)
+        return
+    if not await books_repo.set_note(session, message.from_user.id, book_id, note):
+        await state.clear()
+        await message.answer(texts.BOOK_NOT_FOUND)
+        return
+    await session.commit()
+    await state.clear()
+    await render_book_note(message, session, message.from_user.id, book_id)
+
+
 @private_router.callback_query(F.data.startswith("book:log:"))
 async def on_log_pages(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
@@ -358,6 +455,7 @@ async def on_pages_read(
     message: Message,
     session: AsyncSession,
     state: FSMContext,
+    bot: Bot,
     settings: Settings | None = None,
 ) -> None:
     pages = parse_positive_int(message.text or "", MAX_BOOK_PAGES)
@@ -400,6 +498,7 @@ async def on_pages_read(
 
     registration = await register_reading(session, user, today)
     await session.commit()
+    await request_cleanup(bot, session, user.id, "reading", today)
     await state.clear()
     reading_message = (
         texts.read_toast(

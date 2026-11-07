@@ -6,6 +6,39 @@ CAPTION_SEARCH_LIMIT = 4000
 CAPTION_PREVIEW_LIMIT = 220
 SEARCH_TEXT_LIMIT = 6000
 CHANNEL_HANDLE_RE = re.compile(r"@[A-Za-z0-9_]{5,32}")
+GENERIC_SEARCH_WORDS = {
+    "کتاب",
+    "کتاب‌ها",
+    "کتابها",
+    "رمان",
+    "رمان‌ها",
+    "رمانها",
+    "داستان",
+    "داستان‌ها",
+    "داستانها",
+    "نویسنده",
+    "نویسندگان",
+    "پی‌دی‌اف",
+    "pdf",
+    "epub",
+    "مقاله",
+    "فایل",
+    "book",
+    "books",
+}
+
+
+def is_generic_search_query(value: str) -> bool:
+    normalized = normalize_catalog_text(value)
+    if not normalized:
+        return True
+    tokens = [token for token in normalized.split() if token]
+    if len(tokens) == 1:
+        token = tokens[0]
+        return len(token) < 3 or token in GENERIC_SEARCH_WORDS
+    if len(tokens) <= 2:
+        return len(" ".join(tokens)) < 5
+    return False
 
 
 def strip_channel_handles(value: str | None) -> str:

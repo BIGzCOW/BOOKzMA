@@ -23,7 +23,10 @@ def get_router() -> Router:
     # فیچر جدید = یه فایل تو همین پوشه + یه خط اینجا
     router = Router()
     book_navigation = BookFlowNavigationMiddleware(
-        books.BOOK_FORM_STATES | catalog.SEARCH_FORM_STATES | profile.SUPPORT_FORM_STATES
+        books.BOOK_FORM_STATES
+        | catalog.SEARCH_FORM_STATES
+        | profile.SUPPORT_FORM_STATES
+        | admin.ADMIN_FORM_STATES
     )
     router.message.middleware(book_navigation)
     router.callback_query.middleware(book_navigation)
@@ -34,7 +37,6 @@ def get_router() -> Router:
         onboarding.router,
         mesbak.router,
         mesbak_social.router,
-        admin.router,
         account.router,
         buddy.router,
         profile.router,
@@ -43,5 +45,6 @@ def get_router() -> Router:
         timezone.router,
         weekly.router,
         books.form_router,
+        admin.router,
     )
     return router

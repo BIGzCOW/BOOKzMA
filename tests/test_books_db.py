@@ -15,6 +15,7 @@ from BOOKzMA.db.models import (
     SupportEvent,
     SupportTicket,
     User,
+    UserBook,
 )
 from BOOKzMA.repositories import analytics
 from BOOKzMA.repositories import books as books_repo
@@ -86,6 +87,51 @@ def test_multiple_page_logs_same_day_are_idempotent_per_message_and_mark_reading
         finally:
             async with pool.begin() as session:
                 await session.execute(delete(User).where(User.id == user_id))
+            await engine.dispose()
+
+    asyncio.run(run_test())
+
+
+def test_book_notes_are_owner_scoped_editable_and_clearable():
+    async def run_test() -> None:
+        engine = create_async_engine(TEST_DATABASE_URL)
+        pool = async_sessionmaker(engine, expire_on_commit=False)
+        owner_id = _user_id()
+        other_id = _user_id()
+        try:
+            async with pool.begin() as session:
+                session.add_all([User(id=owner_id), User(id=other_id)])
+            async with pool.begin() as session:
+                status, book = await books_repo.add(
+                    session, owner_id, "یادداشت خصوصی", None, 100
+                )
+                assert status == "ok" and book is not None
+                book_id = book.id
+
+            async with pool.begin() as session:
+                assert await books_repo.set_note(session, owner_id, book_id, "یادداشت من")
+                assert (
+                    await books_repo.set_note(session, other_id, book_id, "دسترسی بیگانه")
+                    is False
+                )
+
+            async with pool.begin() as session:
+                progress = await books_repo.get_progress(session, owner_id, book_id)
+                assert progress is not None and progress.book.note == "یادداشت من"
+                assert await books_repo.set_note(session, owner_id, book_id, None)
+
+            async with pool() as session:
+                progress = await books_repo.get_progress(session, owner_id, book_id)
+                assert progress is not None and progress.book.note is None
+
+            async with pool.begin() as session:
+                await session.execute(delete(User).where(User.id == owner_id))
+                assert await session.scalar(
+                    select(func.count()).select_from(UserBook).where(UserBook.id == book_id)
+                ) == 0
+        finally:
+            async with pool.begin() as session:
+                await session.execute(delete(User).where(User.id.in_([owner_id, other_id])))
             await engine.dispose()
 
     asyncio.run(run_test())

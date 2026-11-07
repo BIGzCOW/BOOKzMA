@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from BOOKzMA import texts
 from BOOKzMA.handlers.account import DeleteAccount, _normalize, on_delete_confirm, on_delete_reason
 from BOOKzMA.handlers.account import on_account_restore, on_delete_word, on_delete_word_not_text
+from BOOKzMA.handlers.profile import on_menu_leaderboard
 from BOOKzMA.middlewares.membership import MembershipMiddleware
 from BOOKzMA.repositories import users
 
@@ -155,6 +156,39 @@ def test_restore_clears_tombstone_and_renders_home(monkeypatch):
         await on_account_restore(callback, Session())
 
         assert restored == [777, ("home", 777)]
+
+    asyncio.run(run_test())
+
+
+def test_leaderboard_is_reachable_from_more_menu(monkeypatch):
+    async def run_test():
+        calls = []
+
+        async def fake_rows(_session):
+            return []
+
+        async def fake_get_or_create(_session, user_id, username, display_name):
+            return SimpleNamespace(id=user_id, leaderboard_opt_out=True)
+
+        async def answer(text, reply_markup=None):
+            calls.append((text, reply_markup))
+
+        monkeypatch.setattr(users, "leaderboard_rows", fake_rows)
+        monkeypatch.setattr(users, "get_or_create", fake_get_or_create)
+
+        class Session:
+            async def commit(self):
+                pass
+
+        message = SimpleNamespace(
+            from_user=SimpleNamespace(id=777, username="ali", full_name="علی"),
+            answer=answer,
+        )
+        await on_menu_leaderboard(message, Session())
+
+        assert calls[0][0] == texts.streak_leaderboard([])
+        assert calls[0][1].inline_keyboard[0][0].callback_data == "leaderboard:toggle"
+        assert calls[0][1].inline_keyboard[0][0].text == "➕ حضور در لیدربورد"
 
     asyncio.run(run_test())
 
