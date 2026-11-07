@@ -115,14 +115,13 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
                 )
                 reading_operation_id = reading_preview.operation_id
                 operation_ids.append(reading_operation_id)
-                snapshot = dict(
-                    await session.execute(
-                        select(
-                            FreezeGiftRecipient.user_id,
-                            FreezeGiftRecipient.preview_units,
-                        ).where(FreezeGiftRecipient.operation_id == reading_operation_id)
-                    )
+                snapshot_result = await session.execute(
+                    select(
+                        FreezeGiftRecipient.user_id,
+                        FreezeGiftRecipient.preview_units,
+                    ).where(FreezeGiftRecipient.operation_id == reading_operation_id)
                 )
+                snapshot = dict(snapshot_result.tuples())
                 assert snapshot[user_ids[0]] == 1
                 assert snapshot[user_ids[1]] == 0
                 assert snapshot[user_ids[2]] == 2
