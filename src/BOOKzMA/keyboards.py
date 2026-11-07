@@ -60,6 +60,7 @@ def _btn(
         "support:reply:",
         "support:ticket",
         "admin:backup_now",
+        "admin:freeze:confirm:",
         "buddy:join",
     )
     if style is None:
@@ -91,27 +92,53 @@ def join_kb(missing: list[str]) -> InlineKeyboardMarkup:
 
 def home_kb(read_today: bool, mesbak_active: bool = False) -> InlineKeyboardMarkup:
     read_text = "✅ امروز ثبت شد" if read_today else "📖 امروز خوندم"
-    rows = [
-        [_btn(read_text, "read")],
-        [_btn("📚 کتابخانه من", "books"), _btn("📊 خلاصهٔ هفتگی", "weekly")],
-        [_btn("⏰ یادآورها", "rem"), _btn("🌍 منطقه زمانی", "tz")],
-        [_btn("💬 پشتیبانی / پیشنهاد", "support")],
-    ]
-    if mesbak_active:
-        rows.append([_btn("🪥 استریک مسباک", "mesbak:open")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return InlineKeyboardMarkup(inline_keyboard=[[_btn(read_text, "read")]])
 
 
 def menu_kb(is_admin: bool = False) -> ReplyKeyboardMarkup:
     rows = [
         [KeyboardButton(text="🏠 خانه"), KeyboardButton(text="👤 پروفایل")],
-        [KeyboardButton(text="📚 کتابخانه من"), KeyboardButton(text="📊 خلاصهٔ هفتگی")],
-        [KeyboardButton(text="⏰ یادآورها"), KeyboardButton(text="🌍 منطقه زمانی")],
-        [KeyboardButton(text="🤝 رفیق مطالعه"), KeyboardButton(text="💬 پشتیبانی")],
-        [KeyboardButton(text="🪥 مسباک"), KeyboardButton(text="💚 حمایت از پروژه")],
+        [KeyboardButton(text="📚 کتابخانه من"), KeyboardButton(text="🪥 مسباک")],
+        [KeyboardButton(text="🤝 رفیق مطالعه"), KeyboardButton(text="🧭 بیشتر")],
+    ]
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
+def profile_menu_kb(opt_out: bool) -> ReplyKeyboardMarkup:
+    toggle_text = "➕ حضور در لیدربورد" if opt_out else "➖ خروج از لیدربورد"
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="⚙️ تنظیمات")],
+            [KeyboardButton(text=toggle_text)],
+            [KeyboardButton(text="🗑 حذف حساب")],
+            [KeyboardButton(text="🏠 خانه")],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def profile_settings_menu_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="⏰ یادآورها")],
+            [KeyboardButton(text="🌍 منطقه زمانی")],
+            [KeyboardButton(text="🔙 پروفایل")],
+            [KeyboardButton(text="🏠 خانه")],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def more_menu_kb(is_admin: bool = False) -> ReplyKeyboardMarkup:
+    rows = [
+        [KeyboardButton(text="📊 خلاصهٔ هفتگی")],
+        [KeyboardButton(text="🏅 لیدربورد")],
+        [KeyboardButton(text="💬 پشتیبانی")],
+        [KeyboardButton(text="💚 حمایت از پروژه")],
     ]
     if is_admin:
         rows.append([KeyboardButton(text="⚙️ مدیریت ربات")])
+    rows.append([KeyboardButton(text="🏠 خانه")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
@@ -179,6 +206,7 @@ def book_detail_with_pages_kb(
     status: str,
     *,
     has_page_count: bool,
+    has_note: bool = False,
     catalog_message_id: int | None = None,
     catalog_url: str | None = None,
 ) -> InlineKeyboardMarkup:
@@ -191,6 +219,8 @@ def book_detail_with_pages_kb(
         elif status == "planned":
             rows.append([_btn("📄 تعیین تعداد صفحات", f"book:set_pages:{book_id}")])
         rows.append([_btn("🗄 آرشیو کتاب", f"book:archive:{book_id}")])
+    note_label = "📝 دیدن یادداشت" if has_note else "📝 افزودن یادداشت"
+    rows.append([_btn(note_label, f"book:note:{book_id}")])
     rows.append([_btn("🔙 کتابخانه من", "books")])
     if catalog_message_id is not None:
         rows.insert(0, [_btn("📥 دریافت فایل", f"catalog:download:{catalog_message_id}")])
@@ -200,6 +230,20 @@ def book_detail_with_pages_kb(
             [_link_btn("🔗 دیدن پست کانال", catalog_url)],
         )
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def book_note_kb(book_id: int, has_note: bool) -> InlineKeyboardMarkup:
+    rows = [[_btn("✏️ ویرایش یادداشت", f"book:note:edit:{book_id}")]]
+    if has_note:
+        rows.append([_btn("🗑 پاک‌کردن یادداشت", f"book:note:clear:{book_id}")])
+    rows.append([_btn("🔙 برگشت به کتاب", f"book:open:{book_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def book_note_cancel_kb(book_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[_btn("🔙 انصراف", f"book:note:{book_id}")]]
+    )
 
 
 def catalog_search_cancel_kb() -> InlineKeyboardMarkup:
@@ -267,6 +311,11 @@ def profile_kb(opt_out: bool, mesbak_active: bool = False) -> InlineKeyboardMark
         rows.append([_btn("🪥 استریک مسباک", "mesbak:open")])
     rows.extend([[_btn("🗑 حذف حساب", "account_del:start")], [_btn("🏠 منوی اصلی", "home")]])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def leaderboard_kb(opt_out: bool) -> InlineKeyboardMarkup:
+    toggle_text = "➖ خروج از لیدربورد" if not opt_out else "➕ حضور در لیدربورد"
+    return InlineKeyboardMarkup(inline_keyboard=[[_btn(toggle_text, "leaderboard:toggle")]])
 
 
 def account_delete_warn_kb() -> InlineKeyboardMarkup:
@@ -344,6 +393,26 @@ def admin_kb() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [_btn("📊 آمار بات", "admin:stats"), _btn("💾 بکاپ", "admin:backup")],
             [_btn("📣 پیام همگانی", "admin:broadcast")],
+            [_btn("🎁 هدیهٔ فریز", "admin:freeze:gift")],
+        ]
+    )
+
+
+def freeze_gift_habit_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn("📚 فریز مطالعه", "admin:freeze:habit:reading")],
+            [_btn("🪥 فریز مسباک", "admin:freeze:habit:mesbak")],
+            [_btn("🔙 برگشت", "admin:stats")],
+        ]
+    )
+
+
+def freeze_gift_confirm_kb(operation_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn("✅ تأیید و اعطا", f"admin:freeze:confirm:{operation_id}")],
+            [_btn("لغو", f"admin:freeze:cancel:{operation_id}")],
         ]
     )
 
@@ -417,6 +486,77 @@ def mesbak_intro_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def mesbak_menu_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🪥 امروز"), KeyboardButton(text="🤝 رفیق‌های مسباک")],
+            [KeyboardButton(text="📊 گزارش‌های مسباک"), KeyboardButton(text="⚙️ تنظیمات مسباک")],
+            [KeyboardButton(text="🏁 چالش‌های مسباک"), KeyboardButton(text="🏆 لیگ مسباک")],
+            [KeyboardButton(text="🏠 خانه")],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def mesbak_reports_menu_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📊 گزارش ۷ روز"), KeyboardButton(text="📅 گزارش ۳۰ روز")],
+            [KeyboardButton(text="🔙 مسباک"), KeyboardButton(text="🏠 خانه")],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def mesbak_settings_menu_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🎯 هدف روزانه"), KeyboardButton(text="⏰ زمان‌های یادآوری")],
+            [KeyboardButton(text="🚪 خروج از مسباک")],
+            [KeyboardButton(text="🔙 مسباک"), KeyboardButton(text="🏠 خانه")],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def mesbak_report_inline_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                _btn("۷ روز", "mesbak:weekly"),
+                _btn("۳۰ روز", "mesbak:monthly"),
+            ],
+            [_btn("🔙 مسباک", "mesbak:open")],
+        ]
+    )
+
+
+def mesbak_challenges_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                _btn("🏁 چالش ۷ روز", "mesbak:challenge:start:7"),
+                _btn("🏁 چالش ۳۰ روز", "mesbak:challenge:start:30"),
+            ],
+            [_btn("🔙 مسباک", "mesbak:open")],
+        ]
+    )
+
+
+def mesbak_settings_kb(reminders: list[tuple[int, str]]) -> InlineKeyboardMarkup:
+    rows = [
+        [_btn(f"⏰ نوبت {slot}: {value} · تغییر", f"mesbak:time:{slot}")]
+        for slot, value in reminders
+    ]
+    rows.extend(
+        [
+            [_btn("🎯 تغییر هدف روزانه", "mesbak:choose_goal")],
+            [_btn("🔙 تنظیمات مسباک", "mesbak:settings")],
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def mesbak_goal_kb() -> InlineKeyboardMarkup:
     rows = _chunk([_btn(str(goal), f"mesbak:goal:{goal}") for goal in range(1, 6)], 5)
     rows.append([_btn("🔙 برگشت", "mesbak:open")])
@@ -431,7 +571,6 @@ def mesbak_screen_kb(
     enabled: bool,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
-    reminder_times = dict(reminders)
     for slot in range(1, goal + 1):
         if slot in completed_slots:
             rows.append([_btn(f"✅ نوبت {slot} ثبت شد", "mesbak:open")])
@@ -439,22 +578,6 @@ def mesbak_screen_kb(
             rows.append(
                 [_btn(f"ثبت نوبت {slot}", f"mesbak:done:{today}:{slot}")]
             )
-        rows.append(
-            [_btn(f"⏰ نوبت {slot}: {reminder_times.get(slot, 'تنظیم نشده')} · تغییر ساعت",
-                  f"mesbak:time:{slot}")]
-        )
-    rows.append(
-        [_btn("📊 گزارش ۷ روز", "mesbak:weekly"), _btn("📅 گزارش ۳۰ روز", "mesbak:monthly")]
-    )
-    rows.append(
-        [_btn("🏁 چالش ۷ روز", "mesbak:challenge:start:7"),
-         _btn("🏁 چالش ۳۰ روز", "mesbak:challenge:start:30")]
-    )
-    rows.append([_btn("🏆 لیگ مسباک", "mesbak:league"), _btn("🤝 رفیق مسباک", "mesbak:buddies")])
-    rows.append([_btn("🎯 تغییر هدف روزانه", "mesbak:choose_goal")])
-    if enabled:
-        rows.append([_btn("خروج از بخش مسباک", "mesbak:exit")])
-    rows.append([_btn("🏠 منوی اصلی", "home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -654,4 +777,13 @@ def buddy_pair_kb(pair_id: int) -> InlineKeyboardMarkup:
 def buddy_waiting_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[[_btn("لغو انتظار", "buddy:leave")], [_btn("🔙 برگشت", "home")]]
+    )
+
+
+def mesbak_buddy_nudge_prompt_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn("🔔 تلنگر به همهٔ مسباک‌نزده‌ها", "mesbak:buddy:nudge:all")],
+            [_btn("فعلاً نه", "mesbak:buddy:nudge:dismiss")],
+        ]
     )

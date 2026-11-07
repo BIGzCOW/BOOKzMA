@@ -66,7 +66,9 @@ async def send_risk_alerts(bot: Bot, session_pool: async_sessionmaker[AsyncSessi
         )
         freeze_rows = await session.execute(
             select(StreakFreeze.user_id, StreakFreeze.day).where(
-                StreakFreeze.kind == "used", StreakFreeze.day >= window_start
+                StreakFreeze.kind == "used",
+                StreakFreeze.habit == "reading",
+                StreakFreeze.day >= window_start,
             )
         )
         alerted_rows = await session.execute(

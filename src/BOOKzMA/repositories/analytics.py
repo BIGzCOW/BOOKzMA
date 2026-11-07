@@ -139,7 +139,15 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
         or 0,
         "freezes_used": await session.scalar(
-            select(func.count()).select_from(StreakFreeze).where(StreakFreeze.kind == "used")
+            select(func.count())
+            .select_from(StreakFreeze)
+            .where(StreakFreeze.kind == "used", StreakFreeze.habit == "reading")
+        )
+        or 0,
+        "mesbak_freezes_used": await session.scalar(
+            select(func.count())
+            .select_from(StreakFreeze)
+            .where(StreakFreeze.kind == "used", StreakFreeze.habit == "mesbak")
         )
         or 0,
         "streak_alerts_7d": await session.scalar(
@@ -347,7 +355,9 @@ async def streak_stats(session: AsyncSession) -> dict[str, int]:
     for user_id, timezone_name, day in read_result:
         readings.setdefault(user_id, (timezone_name, [], []))[1].append(day)
     freeze_result = await session.execute(
-        select(StreakFreeze.user_id, StreakFreeze.day).where(StreakFreeze.kind == "used")
+        select(StreakFreeze.user_id, StreakFreeze.day).where(
+            StreakFreeze.kind == "used", StreakFreeze.habit == "reading"
+        )
     )
     for user_id, day in freeze_result:
         if user_id in readings:

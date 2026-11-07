@@ -1,5 +1,5 @@
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from BOOKzMA import keyboards, texts
@@ -14,23 +14,32 @@ router = Router()
 
 @router.callback_query(F.data == "weekly")
 async def on_weekly_summary(callback: CallbackQuery, session: AsyncSession) -> None:
-    tg = callback.from_user
+    await render_weekly_summary(callback, session, callback.from_user)
+
+
+@router.message(F.text == "📊 خلاصهٔ هفتگی")
+async def on_menu_weekly_summary(message: Message, session: AsyncSession) -> None:
+    if message.from_user is not None:
+        await render_weekly_summary(message, session, message.from_user)
+
+
+async def render_weekly_summary(event, session: AsyncSession, tg) -> None:
     user = await users.get_or_create(session, tg.id, tg.username)
     await session.commit()
     today = local_today(user.timezone)
     days = await readings.get_days(session, user.id)
     frozen_days = await streak_freezes.used_days(session, user.id)
     summary = weekly_summary(days, today, frozen_days)
-    await callback.answer()
-    await show(
-        callback,
-        texts.weekly_summary(
-            summary["days_read"],
-            displayed_streak(
-                days, today, frozen_days, user.comeback_bonus_days, user.comeback_base_day
-            ),
-            longest_streak(days, frozen_days),
-            await streak_freezes.balance(session, user.id),
+    text = texts.weekly_summary(
+        summary["days_read"],
+        displayed_streak(
+            days, today, frozen_days, user.comeback_bonus_days, user.comeback_base_day
         ),
-        keyboards.weekly_kb(),
+        longest_streak(days, frozen_days),
+        await streak_freezes.balance(session, user.id),
     )
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+        await show(event, text, keyboards.weekly_kb())
+    else:
+        await event.answer(text, reply_markup=keyboards.weekly_kb())

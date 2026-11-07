@@ -7,7 +7,7 @@ from pydantic import SecretStr
 from BOOKzMA import keyboards, texts
 from BOOKzMA.config import Settings
 from BOOKzMA.handlers.onboarding import on_pick_time, on_skip, start_onboarding
-from BOOKzMA.handlers.start import cmd_start, is_returning_reader
+from BOOKzMA.handlers.start import cmd_start, is_returning_reader, on_menu_home
 from BOOKzMA.repositories import users
 from BOOKzMA.services.buddy_invites import invite_token_hash
 
@@ -271,6 +271,33 @@ def test_cmd_start_greets_returning_reader_before_home(monkeypatch):
         state, _recorded = _state()
         await cmd_start(message, Session(), state, SETTINGS)
 
-        assert answers == [texts.WELCOME_BACK, "home", "از منوی پایین استفاده کن."]
+        assert answers == [texts.WELCOME_BACK, "home", texts.MAIN_MENU_HINT]
+
+    asyncio.run(run_test())
+
+
+def test_home_menu_restores_main_keyboard(monkeypatch):
+    async def run_test():
+        sent = []
+
+        async def fake_render_home(event, session, tg):
+            sent.append(("home", tg.id))
+
+        async def answer(text=None, reply_markup=None):
+            sent.append((text, reply_markup))
+
+        monkeypatch.setattr("BOOKzMA.handlers.start.render_home", fake_render_home)
+        message = SimpleNamespace(
+            from_user=SimpleNamespace(id=777), answer=answer
+        )
+        state, _recorded = _state()
+        await on_menu_home(message, Session(), state, SETTINGS)
+
+        assert sent[0] == ("home", 777)
+        assert sent[1][0] == texts.MAIN_MENU_HINT
+        labels = [
+            button.text for row in sent[1][1].keyboard for button in row
+        ]
+        assert "🧭 بیشتر" in labels
 
     asyncio.run(run_test())

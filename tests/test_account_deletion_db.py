@@ -10,9 +10,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from BOOKzMA.db.models import (
     ActivityDay,
     DeletedAccount,
+    MesbakProfile,
+    MesbakReminder,
     PageLog,
     ReadingLog,
     Reminder,
+    ReminderMessage,
     StreakFreeze,
     SupportBlock,
     SupportEvent,
@@ -40,9 +43,39 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                 await mark_read(session, user_id, date(2026, 10, 20))
                 await mark_read(session, user_id, date(2026, 10, 21))
                 session.add(StreakFreeze(user_id=user_id, kind="used", day=date(2026, 10, 19)))
-                session.add(Reminder(user_id=user_id, remind_at=time(8, 0)))
+                reading_reminder = Reminder(user_id=user_id, remind_at=time(8, 0))
+                session.add(reading_reminder)
+                session.add(MesbakProfile(user_id=user_id, enabled=True, daily_goal=1))
+                mesbak_reminder = MesbakReminder(
+                    user_id=user_id, slot=1, remind_at=time(6, 30)
+                )
+                session.add(mesbak_reminder)
+                await session.flush()
+                session.add_all(
+                    [
+                        ReminderMessage(
+                            user_id=user_id,
+                            habit="reading",
+                            schedule_id=reading_reminder.id,
+                            local_day=date(2026, 10, 21),
+                            message_id=101,
+                        ),
+                        ReminderMessage(
+                            user_id=user_id,
+                            habit="mesbak",
+                            schedule_id=mesbak_reminder.slot,
+                            local_day=date(2026, 10, 21),
+                            message_id=102,
+                        ),
+                    ]
+                )
                 session.add(ActivityDay(user_id=user_id, day=date(2026, 10, 21)))
-                book = UserBook(user_id=user_id, title="کتاب حذف‌شونده", total_pages=100)
+                book = UserBook(
+                    user_id=user_id,
+                    title="کتاب حذف‌شونده",
+                    total_pages=100,
+                    note="یادداشت خصوصی",
+                )
                 session.add(book)
                 await session.flush()
                 session.add(
@@ -78,6 +111,9 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                 assert await _count(session, ReadingLog, user_id) == 0
                 assert await _count(session, StreakFreeze, user_id) == 0
                 assert await _count(session, Reminder, user_id) == 0
+                assert await _count(session, MesbakProfile, user_id) == 0
+                assert await _count(session, MesbakReminder, user_id) == 0
+                assert await _count(session, ReminderMessage, user_id) == 0
                 assert await _count(session, ActivityDay, user_id) == 0
                 assert await _count(session, UserBook, user_id) == 0
                 assert await _count(session, SupportTicket, ticket_id) == 0

@@ -2,6 +2,7 @@ from datetime import date, datetime, time
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     Computed,
@@ -77,6 +78,7 @@ class UserBook(Base):
     )
     title: Mapped[str] = mapped_column(String(200))
     author: Mapped[str | None] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(Text)
     total_pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
     catalog_message_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("book_catalog_entries.message_id", ondelete="SET NULL")
@@ -193,17 +195,94 @@ class PageLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class FreezeGiftOperation(Base):
+    __tablename__ = "freeze_gift_operations"
+    __table_args__ = (
+        CheckConstraint("habit IN ('reading', 'mesbak')", name="ck_freeze_gift_habit"),
+        CheckConstraint("audience IN ('all', 'mesbak')", name="ck_freeze_gift_audience"),
+        CheckConstraint("requested_amount BETWEEN 1 AND 1000", name="ck_freeze_gift_amount"),
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'cancelled')", name="ck_freeze_gift_status"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_id: Mapped[int] = mapped_column(BigInteger)
+    habit: Mapped[str] = mapped_column(String(16))
+    audience: Mapped[str] = mapped_column(String(16))
+    requested_amount: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    preview_recipients: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    preview_units: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    preview_capped: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    preview_skipped: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    credited_recipients: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    credited_units: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    capped_recipients: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    skipped_recipients: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class FreezeGiftRecipient(Base):
+    __tablename__ = "freeze_gift_recipients"
+    __table_args__ = (
+        CheckConstraint("preview_units >= 0", name="ck_freeze_gift_preview_units"),
+        CheckConstraint("credited_units >= 0", name="ck_freeze_gift_credited_units"),
+        CheckConstraint(
+            "status IN ('pending', 'credited', 'capped', 'skipped')",
+            name="ck_freeze_gift_recipient_status",
+        ),
+        Index("ix_freeze_gift_recipients_user", "user_id"),
+    )
+
+    operation_id: Mapped[int] = mapped_column(
+        ForeignKey("freeze_gift_operations.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    preview_units: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    credited_units: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+
+
 class StreakFreeze(Base):
     __tablename__ = "streak_freezes"
     __table_args__ = (
-        CheckConstraint("kind IN ('earned', 'used')", name="ck_streak_freeze_kind"),
-        UniqueConstraint("user_id", "kind", "day", name="uq_streak_freeze_user_kind_day"),
+        CheckConstraint(
+            "kind IN ('earned', 'used', 'gifted')", name="ck_streak_freeze_kind"
+        ),
+        CheckConstraint("habit IN ('reading', 'mesbak')", name="ck_streak_freeze_habit"),
+        CheckConstraint("quantity > 0", name="ck_streak_freeze_quantity"),
+        CheckConstraint(
+            "(kind = 'gifted' AND operation_id IS NOT NULL) OR "
+            "(kind IN ('earned', 'used') AND operation_id IS NULL)",
+            name="ck_streak_freeze_operation",
+        ),
+        Index(
+            "uq_streak_freeze_real_day",
+            "user_id",
+            "habit",
+            "kind",
+            "day",
+            unique=True,
+            postgresql_where=text("kind IN ('earned', 'used')"),
+        ),
+        UniqueConstraint(
+            "operation_id", "user_id", name="uq_streak_freeze_operation_user"
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
+    habit: Mapped[str] = mapped_column(String(16), default="reading", server_default="reading")
     kind: Mapped[str] = mapped_column(String(8))
+    quantity: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     day: Mapped[date] = mapped_column(Date)
+    operation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("freeze_gift_operations.id", ondelete="CASCADE")
+    )
 
 
 class ActivityDay(Base):
@@ -423,6 +502,31 @@ class MesbakReminder(Base):
     attempt_date: Mapped[date | None] = mapped_column(Date)
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     retry_after_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReminderMessage(Base):
+    __tablename__ = "reminder_messages"
+    __table_args__ = (
+        CheckConstraint("habit IN ('reading', 'mesbak')", name="ck_reminder_message_habit"),
+        CheckConstraint("schedule_id > 0", name="ck_reminder_message_schedule_id"),
+        Index("ix_reminder_messages_owner_day", "user_id", "habit", "local_day"),
+        Index(
+            "ix_reminder_messages_pending",
+            "retry_after_until",
+            postgresql_where=text("cleanup_pending"),
+        ),
+        UniqueConstraint("user_id", "message_id", name="uq_reminder_message_user_message"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
+    habit: Mapped[str] = mapped_column(String(16))
+    schedule_id: Mapped[int] = mapped_column(Integer)
+    local_day: Mapped[date] = mapped_column(Date)
+    message_id: Mapped[int] = mapped_column(BigInteger)
+    cleanup_pending: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    retry_after_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class MesbakBadge(Base):

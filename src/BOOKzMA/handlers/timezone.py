@@ -6,6 +6,7 @@ from aiogram.types import User as TgUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from BOOKzMA import keyboards, texts
+from BOOKzMA.config import Settings
 from BOOKzMA.constants import TIMEZONES, TZ_LABELS
 from BOOKzMA.handlers.common import render_home, show
 from BOOKzMA.repositories import users
@@ -41,7 +42,9 @@ async def on_timezone(callback: CallbackQuery, session: AsyncSession) -> None:
 
 
 @router.callback_query(F.data.startswith("tz_set:"))
-async def on_timezone_set(callback: CallbackQuery, session: AsyncSession) -> None:
+async def on_timezone_set(
+    callback: CallbackQuery, session: AsyncSession, settings: Settings
+) -> None:
     raw = (callback.data or "").split(":", 1)[1]
     if not raw.isdigit() or int(raw) >= len(TIMEZONES):
         await callback.answer()
@@ -53,3 +56,8 @@ async def on_timezone_set(callback: CallbackQuery, session: AsyncSession) -> Non
     await session.commit()
     await callback.answer(f"منطقه زمانی: {label}")
     await render_home(callback, session, tg)
+    if isinstance(callback.message, Message):
+        await callback.message.answer(
+            texts.MAIN_MENU_HINT,
+            reply_markup=keyboards.menu_kb(tg.id in settings.admin_ids),
+        )

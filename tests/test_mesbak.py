@@ -100,6 +100,15 @@ def test_missed_day_breaks_current_streak():
     assert current_streak({TODAY - timedelta(days=2), TODAY - timedelta(days=3)}, TODAY) == 0
 
 
+def test_mesbak_freeze_preserves_streak_without_counting_a_completed_day():
+    completed = {TODAY, TODAY - timedelta(days=2)}
+    frozen = {TODAY - timedelta(days=1)}
+
+    assert current_streak(completed, TODAY, frozen) == 3
+    assert longest_streak(completed, frozen) == 3
+    assert TODAY - timedelta(days=1) not in completed
+
+
 def test_longest_streak_is_derived_from_completed_days():
     days = {TODAY, TODAY - timedelta(days=1), TODAY - timedelta(days=4)}
 
@@ -208,6 +217,41 @@ def test_mesbak_buddy_nudge_summary_matches_library_buddy_style():
     assert "۲ نفر" in summary
     assert "کامل کرده بودند" in summary
     assert "قبلاً تلنگر" in summary
+
+
+def test_mesbak_sections_live_in_reply_menu_and_today_inline_is_contextual():
+    main_labels = [
+        button.text for row in keyboards.mesbak_menu_kb().keyboard for button in row
+    ]
+    report_labels = [
+        button.text
+        for row in keyboards.mesbak_reports_menu_kb().keyboard
+        for button in row
+    ]
+    settings_labels = [
+        button.text
+        for row in keyboards.mesbak_settings_menu_kb().keyboard
+        for button in row
+    ]
+    today_callbacks = {
+        button.callback_data
+        for row in keyboards.mesbak_screen_kb(2, [], set(), "20261107", True).inline_keyboard
+        for button in row
+    }
+
+    assert {
+        "🪥 امروز",
+        "🤝 رفیق‌های مسباک",
+        "📊 گزارش‌های مسباک",
+        "⚙️ تنظیمات مسباک",
+        "🏁 چالش‌های مسباک",
+        "🏆 لیگ مسباک",
+    } <= set(main_labels)
+    assert {"📊 گزارش ۷ روز", "📅 گزارش ۳۰ روز"} <= set(report_labels)
+    assert {"🎯 هدف روزانه", "⏰ زمان‌های یادآوری", "🚪 خروج از مسباک"} <= set(
+        settings_labels
+    )
+    assert today_callbacks == {"mesbak:done:20261107:1", "mesbak:done:20261107:2"}
 
 
 def test_mesbak_goal_keyboard_has_valid_rows_and_callbacks():

@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from BOOKzMA.db.models import BookCatalogEntry, BookCatalogSyncState
-from BOOKzMA.services.catalog_text import normalize_catalog_text
+from BOOKzMA.services.catalog_text import is_generic_search_query, normalize_catalog_text
 
 
 @dataclass(frozen=True)
@@ -28,26 +29,33 @@ async def search(
     limit: int,
 ) -> tuple[list[CatalogHit], bool]:
     normalized_query = normalize_catalog_text(query)[:120]
-    if not normalized_query or offset < 0 or limit < 1:
+    if not normalized_query or offset < 0 or limit < 1 or is_generic_search_query(normalized_query):
         return [], False
 
     ts_query = func.websearch_to_tsquery("simple", normalized_query)
     rank = func.ts_rank_cd(BookCatalogEntry.search_vector, ts_query)
-    result = await session.execute(
-        select(
-            BookCatalogEntry.message_id,
-            BookCatalogEntry.file_name,
-            BookCatalogEntry.caption_preview,
-            BookCatalogEntry.media_type,
-            BookCatalogEntry.mime_type,
-            BookCatalogEntry.file_size,
-            BookCatalogEntry.bot_file_id,
+    try:
+        await session.execute(text("SET LOCAL statement_timeout = '350ms'"))
+        result = await session.execute(
+            select(
+                BookCatalogEntry.message_id,
+                BookCatalogEntry.file_name,
+                BookCatalogEntry.caption_preview,
+                BookCatalogEntry.media_type,
+                BookCatalogEntry.mime_type,
+                BookCatalogEntry.file_size,
+                BookCatalogEntry.bot_file_id,
+            )
+            .where(BookCatalogEntry.search_vector.op("@@")(ts_query))
+            .order_by(rank.desc(), BookCatalogEntry.message_id.desc())
+            .offset(offset)
+            .limit(limit + 1)
         )
-        .where(BookCatalogEntry.search_vector.op("@@")(ts_query))
-        .order_by(rank.desc(), BookCatalogEntry.message_id.desc())
-        .offset(offset)
-        .limit(limit + 1)
-    )
+    except DatabaseError as exc:
+        message = str(exc).lower()
+        if "statement timeout" in message or "canceling statement" in message:
+            raise TimeoutError("catalog query timed out") from exc
+        raise
     rows = result.all()
     has_next = len(rows) > limit
     return [CatalogHit(*row) for row in rows[:limit]], has_next
@@ -59,7 +67,9 @@ async def get_entry(session: AsyncSession, message_id: int) -> BookCatalogEntry 
 
 async def sync_cursor(session: AsyncSession) -> int:
     state = await session.get(BookCatalogSyncState, "main")
-    return state.source_row_id if state is not None else 0
+    if state is None:
+        return 0
+    return state.source_row_id or 0
 
 
 async def upsert_batch(
@@ -95,7 +105,7 @@ async def upsert_batch(
     if state is None:
         state = BookCatalogSyncState(key="main")
         session.add(state)
-    state.source_row_id = max(state.source_row_id, next_source_row_id)
+    state.source_row_id = max(state.source_row_id or 0, next_source_row_id)
     state.last_error = None
 
 

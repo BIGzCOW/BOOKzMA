@@ -236,14 +236,38 @@ def test_finished_book_detail_offers_archive_alongside_catalog_actions():
     assert any("آرشیو کتاب" in label for label in labels)
 
 
+def test_book_detail_and_note_page_offer_private_note_actions():
+    detail = keyboards.book_detail_with_pages_kb(
+        42, "archived", has_page_count=True, has_note=True
+    )
+    note = keyboards.book_note_kb(42, has_note=True)
+    detail_callbacks = {
+        button.callback_data for row in detail.inline_keyboard for button in row
+    }
+    note_callbacks = {
+        button.callback_data for row in note.inline_keyboard for button in row
+    }
+
+    assert "book:note:42" in detail_callbacks
+    assert "book:note:edit:42" in note_callbacks
+    assert "book:note:clear:42" in note_callbacks
+    assert "book:open:42" in note_callbacks
+
+
+def test_book_note_display_escapes_title_and_user_text():
+    rendered = texts.book_note("<Book>", "<b>private</b> & personal")
+
+    assert "&lt;Book&gt;" in rendered
+    assert "&lt;b&gt;private&lt;/b&gt; &amp; personal" in rendered
+
+
 def test_inline_button_styles_are_consistent_by_action():
     home = keyboards.home_kb(read_today=False)
     home_buttons = [button for row in home.inline_keyboard for button in row]
     styles = {button.callback_data: button.style for button in home_buttons}
 
     assert styles["read"] == "success"
-    assert styles["weekly"] == "primary"
-    assert styles["support"] == "primary"
+    assert list(styles) == ["read"]
 
     detail = keyboards.book_detail_kb(7, "reading")
     detail_buttons = [button for row in detail.inline_keyboard for button in row]
@@ -282,6 +306,34 @@ def test_leaderboard_toggle_colors_follow_the_action():
 def test_library_label_uses_requested_spelling():
     assert "کتابخانهٔ" not in keyboards.menu_kb().keyboard[1][0].text
     assert "کتابخانهٔ" not in texts.bookshelf(0, 0)
+
+
+def test_reply_menus_group_secondary_destinations():
+    main_labels = [button.text for row in keyboards.menu_kb().keyboard for button in row]
+    profile_labels = [
+        button.text for row in keyboards.profile_menu_kb(opt_out=False).keyboard for button in row
+    ]
+    settings_labels = [
+        button.text for row in keyboards.profile_settings_menu_kb().keyboard for button in row
+    ]
+    more_labels = [
+        button.text for row in keyboards.more_menu_kb(is_admin=True).keyboard for button in row
+    ]
+
+    assert main_labels == [
+        "🏠 خانه",
+        "👤 پروفایل",
+        "📚 کتابخانه من",
+        "🪥 مسباک",
+        "🤝 رفیق مطالعه",
+        "🧭 بیشتر",
+    ]
+    assert "🌍 منطقه زمانی" not in main_labels
+    assert "🌍 منطقه زمانی" in settings_labels
+    assert "⏰ یادآورها" in settings_labels
+    assert "🏅 لیدربورد" in more_labels
+    assert "⚙️ مدیریت ربات" in more_labels
+    assert "➖ خروج از لیدربورد" in profile_labels
 
 
 def test_bookshelf_summary_lists_started_books_and_all_categories():

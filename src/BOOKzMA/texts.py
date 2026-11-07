@@ -1,6 +1,7 @@
 from html import escape
 
 from BOOKzMA.constants import (
+    MAX_BOOK_NOTE_LENGTH,
     MAX_BOOK_PAGES,
     MAX_REMINDERS,
     MILESTONES,
@@ -12,7 +13,8 @@ from BOOKzMA.services.books import progress_percent
 from BOOKzMA.services.catalog_text import strip_channel_handles
 from BOOKzMA.utils import fa
 
-MAX_STREAK_FREEZES = 2
+MAX_STREAK_FREEZES = 3
+MAX_MESBAK_FREEZES = 3
 JOIN_GATE = "برای استفاده از ربات باید عضو کانال‌های زیر باشی. عضو که شدی دکمه «عضو شدم» رو بزن:"
 JOIN_FIRST = "اول باید عضو کانال‌ها بشی 🙂"
 NOT_JOINED = "هنوز عضو همه کانال‌ها نیستی 🙂"
@@ -44,6 +46,13 @@ BOOK_RESTORED = "کتاب به کتابخانه برگشت."
 BOOK_PRIVATE_ONLY = "برای حفظ حریم خصوصی، کتابخانه رو در گفت‌وگوی خصوصی با ربات باز کن."
 CATALOG_ASK_QUERY = "اسم کتاب یا بخشی از توضیحش رو بفرست تا در کتاب‌های کانال بگردم."
 CATALOG_BAD_QUERY = "عبارت جست‌وجو معتبر نیست؛ دست‌کم دو حرف بفرست."
+CATALOG_QUERY_TOO_BROAD = (
+    "نتیجه‌ها خیلی زیاد می‌شوند؛ نام نویسنده یا بخشی از عنوان را دقیق‌تر بنویس تا جست‌وجو دقیق‌تر شود."
+)
+CATALOG_QUERY_TIMEOUT = (
+    "جست‌وجو برای این عبارت خیلی گسترده بود و زمانش از حد مجاز گذشت؛ "
+    "یک بخش دقیق‌تر از عنوان یا نام نویسنده را بنویس."
+)
 CATALOG_NOT_CONFIGURED = "جست‌وجوی کتاب‌های کانال فعلاً در دسترس نیست."
 CATALOG_NO_RESULTS = "کتابی با این عبارت پیدا نکردم."
 CATALOG_SEARCH_FAILED = "الان جست‌وجو انجام نشد؛ کمی بعد دوباره امتحان کن."
@@ -55,6 +64,10 @@ CATALOG_FILE_FAILED = "فعلاً نتونستم فایل رو از کانال �
 BOOK_ASK_PAGE_COUNT_LATER = "هر وقت آماده‌ای، تعداد کل صفحه‌های کتاب رو بفرست."
 BOOK_PAGE_COUNT_UNDER_PROGRESS = "تعداد کل صفحه‌ها نمی‌تونه از صفحه‌هایی که قبلاً خوندی کمتر باشه."
 BOOK_PAGE_COUNT_ALREADY_SET = "تعداد صفحه‌های این کتاب قبلاً ثبت شده."
+BOOK_ASK_NOTE = "یادداشت یا توضیحت رو در یک پیام بفرست؛ حداکثر ۳۵۰۰ نویسه."
+BOOK_BAD_NOTE = f"یادداشت باید بین ۱ تا {fa(MAX_BOOK_NOTE_LENGTH)} نویسه باشه."
+BOOK_NOTE_SAVED = "یادداشت کتاب ذخیره شد."
+BOOK_NOTE_CLEARED = "یادداشت پاک شد؛ خود کتاب و سابقه‌اش دست‌نخورده موند."
 
 ACCOUNT_DELETE_WARN = (
     "🗑 <b>حذف حساب</b>\n\n"
@@ -167,6 +180,9 @@ ONBOARDING_WELCOME = (
     "برای شروع، اولین یادآور روزانه‌ات رو انتخاب کن؛ اگر هم فقط بخش مسباک رو می‌خوای، "
     "گزینهٔ پایین رو بزن:"
 )
+MAIN_MENU_HINT = "از منوی پایین بخش موردنظرت رو انتخاب کن."
+MORE_MENU = "از اینجا به خلاصه، لیدربورد و راه‌های ارتباطی می‌رسی."
+PROFILE_SETTINGS_MENU = "تنظیمات پروفایل و برنامهٔ روزانه‌ات رو از اینجا مدیریت کن."
 ONBOARDING_DONE = "یادآورت فعاله ⏰ حالا هر روز سر وقت بهت یادآوری می‌کنم."
 ONBOARDING_SKIPPED = "باشه! هر وقت خواستی از منوی «⏰ یادآورها» بذار 🙂"
 WELCOME_BACK = (
@@ -219,6 +235,16 @@ BUDDY_NUDGE_SENT = "تلنگر رفت 🔔"
 BUDDY_NUDGE_LIMIT = "امروز یه تلنگر زدی؛ فردا دوباره 🙂"
 BUDDY_ALREADY_READ = "رفیقت امروز مطالعه‌ش رو ثبت کرده؛ تلنگر براش نفرستادم ✅"
 BUDDY_NUDGE_PROMPT = "امروز خوندی 👏 دوست داری به رفیق‌هایی که هنوز نخوندن تلنگر بزنی؟"
+MESBAK_BUDDY_NUDGE_PROMPT = (
+    "آفرین، سهمیهٔ امروز مسباکت کامل شد 👏 "
+    "دوست داری به رفیق‌های مسباکت که هنوز کامل نکردن تلنگر بزنی؟"
+)
+MESBAK_BUDDY_NUDGE_DISMISSED = "باشه؛ هر وقت خواستی از فهرست رفیق‌های مسباک تلنگر بزن."
+MESBAK_MENU_HINT = "بخش‌های اصلی مسباک از منوی پایین در دسترس‌اند."
+MESBAK_SETTINGS_TITLE = (
+    "⚙️ <b>تنظیمات مسباک</b>\n\n"
+    "هدف و زمان‌های یادآوری را از دکمه‌های همین صفحه تغییر بده."
+)
 BUDDY_ENDED = (
     "هم‌یاری تمام شد. بدون دلخوری؛ هر وقت خواستی دوباره می‌تونی رفیق پیدا کنی 👋"
 )
@@ -283,6 +309,7 @@ def home(
     read_today: bool,
     freeze_balance: int,
     mesbak_streak: int | None = None,
+    mesbak_freeze_balance: int = 0,
 ) -> str:
     if streak:
         streak_line = f"🔥 <b>{fa(streak)}</b> روز پشت‌سرهم"
@@ -306,7 +333,10 @@ def home(
         f"{status}"
     )
     if mesbak_streak is not None:
-        result += f"\n\n🪥 استریک مسباک: {fa(mesbak_streak)} روز"
+        result += (
+            f"\n\n🪥 استریک مسباک: {fa(mesbak_streak)} روز"
+            f"\n🛡️ فریز مسباک: {fa(mesbak_freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}"
+        )
     return result
 
 
@@ -451,6 +481,12 @@ def book_detail(
     )
 
 
+def book_note(title: str, note: str | None) -> str:
+    clean_title = strip_channel_handles(title)
+    content = f"\n\n{escape(note)}" if note else "\n\nهنوز یادداشتی برای این کتاب ننوشتی."
+    return f"📝 <b>یادداشت {escape(clean_title)}</b>{content}"
+
+
 def book_ask_pages(title: str, remaining: int) -> str:
     title = strip_channel_handles(title)
     return (
@@ -581,6 +617,7 @@ def profile(
     opted_out: bool,
     badges: list[str],
     mesbak_streak: int | None = None,
+    mesbak_freeze_balance: int = 0,
 ) -> str:
     participation = "خاموش" if opted_out else "روشن"
     if badges:
@@ -596,7 +633,10 @@ def profile(
         f"🎖 نشان‌ها: {badges_line}"
     )
     if mesbak_streak is not None:
-        result += f"\n🪥 استریک مسباک: {fa(mesbak_streak)} روز"
+        result += (
+            f"\n🪥 استریک مسباک: {fa(mesbak_streak)} روز"
+            f"\n🛡️ فریز مسباک: {fa(mesbak_freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}"
+        )
     return result
 
 
@@ -632,6 +672,46 @@ SUPPORT_ADMIN_TICKET = (
     "✉️ تیکت #{ticket_id} از <b>{name}</b>\n"
     "شناسه کاربر: <code>{user_id}</code>"
 )
+
+FREEZE_GIFT_SELECT = "فریز موردنظر برای هدیه را انتخاب کن:"
+FREEZE_GIFT_ASK_AMOUNT = "تعداد فریز موردنظر برای هر کاربر را بفرست؛ عددی بین ۱ تا ۱۰۰۰."
+FREEZE_GIFT_BAD_AMOUNT = "یک عدد صحیح بین ۱ تا ۱۰۰۰ بفرست."
+FREEZE_GIFT_CANCELLED = "عملیات هدیه لغو شد؛ هیچ فریزی تغییر نکرد."
+
+
+def freeze_gift_preview(
+    habit: str,
+    amount: int,
+    recipients: int,
+    units: int,
+    capped: int,
+    skipped: int = 0,
+    *,
+    changed: bool = False,
+) -> str:
+    habit_label = "مطالعه" if habit == "reading" else "مسباک"
+    audience = "کاربران ثبت‌شده" if habit == "reading" else "اعضای فعال مسباک"
+    prefix = "پیش‌نمایش تغییر کرد؛ دوباره بررسی کن.\n\n" if changed else ""
+    return (
+        f"{prefix}🎁 <b>هدیهٔ فریز {habit_label}</b>\n\n"
+        f"گیرندگان: {fa(recipients)} · {audience}\n"
+        f"درخواست برای هر نفر: {fa(amount)}\n"
+        f"اعتبار واقعی با سقف {fa(3)}: {fa(units)} فریز\n"
+        f"بدون اعتبار به‌علت سقف: {fa(capped)} نفر\n\n"
+        f"خارج‌شده از مخاطب بعد از پیش‌نمایش: {fa(skipped)} نفر\n\n"
+        "اعلان برای کاربران ارسال نمی‌شود. تأیید می‌کنی؟"
+    )
+
+
+def freeze_gift_result(
+    habit: str, recipients: int, units: int, capped: int, skipped: int = 0
+) -> str:
+    habit_label = "مطالعه" if habit == "reading" else "مسباک"
+    return (
+        f"✅ هدیهٔ فریز {habit_label} انجام شد.\n"
+        f"اعتبار ثبت‌شده: {fa(units)} برای {fa(recipients)} نفر\n"
+        f"در سقف بودند: {fa(capped)} نفر · از مخاطب خارج: {fa(skipped)} نفر"
+    )
 
 
 def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> str:
@@ -678,7 +758,8 @@ def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> 
         f"🤝 رفیق مسباک · جفت فعال: {fa(stats['mesbak_buddy_pairs'])} "
         f"(ناشناس: {fa(stats['mesbak_random_pairs'])}) · "
         f"منتظر در صف: {fa(stats['mesbak_random_waiting'])}\n"
-        f"🛡️ فریزهای مصرف‌شده: {fa(stats['freezes_used'])}\n"
+        f"🛡️ فریز مصرف‌شده · مطالعه/مسباک: {fa(stats['freezes_used'])} / "
+        f"{fa(stats['mesbak_freezes_used'])}\n"
         f"⚠️ هشدار «استریک در خطر» در ۷ روز: {fa(stats['streak_alerts_7d'])}\n"
         f"🔁 کاربران با پاداش comeback: {fa(stats['comeback_users'])}\n"
         f"🎖 نشان‌ها: {fa(stats['badges_total'])} اهدا به {fa(stats['badge_holders'])} نفر\n"
@@ -725,6 +806,7 @@ def mesbak_screen(
     pending_goal: int | None,
     pending_date: str | None,
     badges: list[str] | None = None,
+    freeze_balance: int = 0,
 ) -> str:
     lines = [
         "🪥 <b>استریک مسباک</b>",
@@ -732,6 +814,7 @@ def mesbak_screen(
         f"امروز: {fa(completed)} از {fa(goal)} نوبت",
         f"🔥 استریک فعلی: {fa(streak)} روز",
         f"🏆 بهترین رکورد: {fa(best)} روز",
+        f"🛡️ فریز موجود: {fa(freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}",
         "",
         "⏰ ساعت‌های یادآوری:",
     ]
@@ -749,7 +832,14 @@ def mesbak_screen(
 
 
 def mesbak_recorded(
-    completed: int, goal: int, streak: int, new_badges: list[str] | None = None
+    completed: int,
+    goal: int,
+    streak: int,
+    new_badges: list[str] | None = None,
+    *,
+    freeze_used: bool = False,
+    freeze_earned: bool = False,
+    freeze_balance: int = 0,
 ) -> str:
     if completed >= goal:
         message = f"🎉 هدف امروز کامل شد؛ استریک مسباکت {fa(streak)} روزه شد!"
@@ -758,6 +848,11 @@ def mesbak_recorded(
     badge_labels = {"streak_7": "هفت روز", "streak_30": "سی روز", "streak_100": "صد روز"}
     if new_badges:
         message += "\n🏅 نشان جدید: " + "، ".join(badge_labels[code] for code in new_badges)
+    if freeze_used:
+        message += "\n🛡️ یک فریز مسباک برای روز ازدست‌رفته مصرف شد."
+    if freeze_earned:
+        message += "\n🎁 یک فریز مسباک گرفتی!"
+    message += f"\n🛡️ فریز مسباک: {fa(freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}"
     return message
 
 
@@ -765,24 +860,34 @@ def mesbak_reminder(slot: int) -> str:
     return mesbak_REMINDER.format(slot=fa(slot))
 
 
-def mesbak_weekly(completed_days: int, streak: int, best: int, days: list[str]) -> str:
+def mesbak_weekly(
+    completed_days: int,
+    streak: int,
+    best: int,
+    days: list[str],
+    freeze_balance: int = 0,
+) -> str:
     return (
         "📊 <b>گزارش مسباک · ۷ روز اخیر</b>\n\n"
         f"روزهای کامل: {fa(completed_days)} از ۷\n"
         f"درصد تکمیل: {fa(round(completed_days * 100 / 7))}%\n"
         f"استریک فعلی: {fa(streak)} روز\n"
         f"بهترین رکورد: {fa(best)} روز\n\n"
+        f"فریز موجود: {fa(freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}\n\n"
         + "\n".join(days)
     )
 
 
-def mesbak_monthly(completed_days: int, streak: int, best: int) -> str:
+def mesbak_monthly(
+    completed_days: int, streak: int, best: int, freeze_balance: int = 0
+) -> str:
     return (
         "📅 <b>گزارش مسباک · ۳۰ روز اخیر</b>\n\n"
         f"روزهای کامل: {fa(completed_days)} از ۳۰\n"
         f"درصد تکمیل: {fa(round(completed_days * 100 / 30))}%\n"
         f"استریک فعلی: {fa(streak)} روز\n"
-        f"بهترین رکورد: {fa(best)} روز"
+        f"بهترین رکورد: {fa(best)} روز\n"
+        f"فریز موجود: {fa(freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}"
     )
 
 
