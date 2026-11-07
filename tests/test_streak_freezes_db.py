@@ -85,6 +85,7 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
         try:
             async with session_pool.begin() as session:
                 session.add_all([User(id=user_id) for user_id in user_ids])
+                await session.flush()
                 session.add_all(
                     [
                         MesbakProfile(user_id=user_ids[0], enabled=True),
@@ -214,6 +215,7 @@ def test_mesbak_gift_rechecks_cohort_and_operation_owner_before_crediting():
         try:
             async with session_pool.begin() as session:
                 session.add_all([User(id=user_id) for user_id in user_ids])
+                await session.flush()
                 session.add_all(
                     MesbakProfile(user_id=user_id, enabled=True) for user_id in user_ids
                 )
@@ -282,6 +284,7 @@ def test_mesbak_freeze_does_not_create_activity_reading_or_challenge_progress():
         try:
             async with session_pool.begin() as session:
                 session.add(User(id=user_id))
+                await session.flush()
                 session.add(
                     MesbakProfile(user_id=user_id, enabled=True, daily_goal=1)
                 )

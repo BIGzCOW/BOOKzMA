@@ -679,11 +679,11 @@ def test_catalog_search_is_private_and_paginates_results(dispatcher, telegram, m
         )
         await dispatcher.feed_update(
             bot,
-            Update(update_id=2, message=message("  کتاب @BOOKzMA  ")),
+            Update(update_id=2, message=message("  مرگ فروشنده @BOOKzMA  ")),
             session=database,
             settings=settings,
         )
-        search.assert_awaited_once_with(database, "کتاب", offset=0, limit=6)
+        search.assert_awaited_once_with(database, "مرگ فروشنده", offset=0, limit=6)
         assert "نتیجه‌های ۱ تا ۱" in replies.call_args.args[0]
         assert "@EppiccNURSE" not in str(replies.call_args.kwargs["reply_markup"])
         assert await state.get_state() is None

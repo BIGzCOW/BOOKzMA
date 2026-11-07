@@ -3,7 +3,7 @@ import os
 import random
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from BOOKzMA.db.models import User
@@ -27,6 +27,9 @@ def test_broadcast_confirmation_and_cancel_are_persisted():
         admin_id = user_ids[0]
         try:
             async with session_pool() as session:
+                eligible_before = await session.scalar(
+                    select(func.count(User.id)).where(User.broadcast_unavailable.is_(False))
+                )
                 session.add_all(
                     [
                         User(id=user_ids[0]),
@@ -39,15 +42,18 @@ def test_broadcast_confirmation_and_cancel_are_persisted():
                     session, admin_id, "A new update is available."
                 )
                 await session.commit()
-                assert recipients == 1
+                expected_recipients = eligible_before + 1
+                assert recipients == expected_recipients
                 assert await broadcasts.start(session, campaign_id, admin_id)
                 assert not await broadcasts.start(session, campaign_id, admin_id + 1)
 
                 counts = await broadcasts.campaign_counts(session, campaign_id)
-                assert counts == {"pending": 1}
+                assert counts == {"pending": expected_recipients}
                 assert await broadcasts.cancel(session, campaign_id, admin_id)
                 await session.commit()
-                assert await broadcasts.campaign_counts(session, campaign_id) == {"cancelled": 1}
+                assert await broadcasts.campaign_counts(session, campaign_id) == {
+                    "cancelled": expected_recipients
+                }
         finally:
             async with session_pool() as session:
                 await session.execute(delete(User).where(User.id.in_(user_ids)))
