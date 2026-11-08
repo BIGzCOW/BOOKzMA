@@ -671,6 +671,8 @@ def test_catalog_search_is_private_and_paginates_results(dispatcher, telegram, m
         )], True)
     )
     monkeypatch.setattr(catalog.book_catalog, "search", search)
+    record_usage = AsyncMock()
+    monkeypatch.setattr(catalog.analytics, "record_catalog_usage", record_usage)
     settings = Settings(
         bot_token="123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi",
         channel_catalog_db_path="/catalog/channel_data.db",
@@ -704,6 +706,9 @@ def test_catalog_search_is_private_and_paginates_results(dispatcher, telegram, m
         assert "نتیجه‌های ۱ تا ۱" in replies.call_args.args[0]
         assert "@EppiccNURSE" not in str(replies.call_args.kwargs["reply_markup"])
         assert await state.get_state() is None
+        record_usage.assert_awaited_once_with(
+            database, result_pages=1, results_shown=1, searches=1
+        )
 
     asyncio.run(run())
 
@@ -735,6 +740,8 @@ def test_catalog_inline_query_in_group_returns_post_link(dispatcher, telegram, m
         "search",
         search,
     )
+    record_usage = AsyncMock()
+    monkeypatch.setattr(catalog.analytics, "record_catalog_usage", record_usage)
     settings = Settings(bot_token="123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi")
     settings.channel_catalog_db_path = "/catalog/channel_data.db"
     catalog_search = object()
@@ -764,6 +771,9 @@ def test_catalog_inline_query_in_group_returns_post_link(dispatcher, telegram, m
         assert result.title == "برونرپوست"
         assert "https://t.me/BOOKzMA/201" in result.input_message_content.message_text
         assert len(answer.call_args.kwargs["next_offset"].encode()) <= 64
+        record_usage.assert_awaited_once_with(
+            database, result_pages=1, results_shown=20, searches=1
+        )
 
     asyncio.run(run())
 
@@ -832,18 +842,22 @@ def test_catalog_download_falls_back_to_channel_link_when_copy_fails(
         )
     )
     monkeypatch.setattr(bot, "copy_message", fail)
+    record_usage = AsyncMock()
+    monkeypatch.setattr(catalog.analytics, "record_catalog_usage", record_usage)
     settings = Settings(bot_token="123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi")
     settings.channel_catalog_channel_username = "BOOKzMA"
+    database = session()
 
     async def run():
         await dispatcher.feed_update(
             bot,
             Update(update_id=1, callback_query=callback("catalog:download:201")),
-            session=session(),
+            session=database,
             settings=settings,
         )
         fail.assert_awaited_once()
         CallbackQuery.answer.assert_awaited_with(texts.CATALOG_FILE_FAILED, show_alert=True)
+        record_usage.assert_awaited_once_with(database, downloads_failed=1)
 
     asyncio.run(run())
 
@@ -873,20 +887,24 @@ def test_catalog_download_uses_cached_file_id_if_copy_fails(
     )
     send_document = AsyncMock()
     monkeypatch.setattr(bot, "send_document", send_document)
+    record_usage = AsyncMock()
+    monkeypatch.setattr(catalog.analytics, "record_catalog_usage", record_usage)
     settings = Settings(bot_token="123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi")
     settings.channel_catalog_channel_username = "BOOKzMA"
+    database = session()
 
     async def run():
         await dispatcher.feed_update(
             bot,
             Update(update_id=1, callback_query=callback("catalog:download:201")),
-            session=session(),
+            session=database,
             settings=settings,
         )
         send_document.assert_awaited_once()
         assert send_document.await_args.kwargs["chat_id"] == 777
         assert send_document.await_args.kwargs["document"] == "cached-document-id"
         assert "@Blue_library" not in send_document.await_args.kwargs["caption"]
+        record_usage.assert_awaited_once_with(database, downloads_succeeded=1)
 
     asyncio.run(run())
 

@@ -18,7 +18,7 @@ from BOOKzMA import keyboards, texts
 from BOOKzMA.config import Settings
 from BOOKzMA.constants import MAX_BOOK_TITLE_LENGTH
 from BOOKzMA.handlers.common import show
-from BOOKzMA.repositories import book_catalog, books as books_repo, users
+from BOOKzMA.repositories import analytics, book_catalog, books as books_repo, users
 from BOOKzMA.services.catalog_text import (
     clean_caption,
     strip_channel_handles,
@@ -63,6 +63,17 @@ def _catalog_message_id(data: str | None, action: str) -> int | None:
     return message_id if 0 < message_id <= 9_223_372_036_854_775_807 else None
 
 
+async def _record_catalog_usage(session: AsyncSession, **increments: int) -> None:
+    try:
+        await analytics.record_catalog_usage(session, **increments)
+    except Exception as error:
+        try:
+            await session.rollback()
+        except Exception:
+            pass
+        log.warning("catalog usage metric write failed (%s)", type(error).__name__)
+
+
 def _channel_url(username: str, message_id: int) -> str:
     return f"https://t.me/{username.lstrip('@')}/{message_id}"
 
@@ -84,6 +95,8 @@ async def _search_page(
     query: str,
     offset: int,
     meilisearch: MeilisearchClient | None,
+    *,
+    is_new_search: bool = False,
 ) -> None:
     hits, has_next = await book_catalog.search(
         session,
@@ -94,6 +107,11 @@ async def _search_page(
     )
     if not hits:
         await show(event, texts.CATALOG_NO_RESULTS, keyboards.catalog_search_cancel_kb())
+        metrics = {"result_pages": 1}
+        if is_new_search:
+            metrics["searches"] = 1
+            metrics["empty_searches"] = 1
+        await _record_catalog_usage(session, **metrics)
         return
     await show(
         event,
@@ -105,6 +123,10 @@ async def _search_page(
             has_next=has_next,
         ),
     )
+    metrics = {"result_pages": 1, "results_shown": len(hits)}
+    if is_new_search:
+        metrics["searches"] = 1
+    await _record_catalog_usage(session, **metrics)
 
 
 @private_router.callback_query(F.data == "catalog:search")
@@ -143,7 +165,7 @@ async def on_catalog_query(
     await state.update_data(catalog_query=query)
     await state.set_state(None)
     try:
-        await _search_page(message, session, query, 0, catalog_search)
+        await _search_page(message, session, query, 0, catalog_search, is_new_search=True)
     except Exception as error:
         await session.rollback()
         log.warning("book catalog search failed (%s)", type(error).__name__)
@@ -238,9 +260,8 @@ async def on_catalog_download(
             from_chat_id=f"@{settings.channel_catalog_channel_username.lstrip('@')}",
             message_id=entry.message_id,
         )
-        await callback.answer()
     except TelegramAPIError as error:
-        log.warning("catalog message copy failed (%s)", type(error).__name__)
+        log.warning("catalog message copy failed (%s): %s", type(error).__name__, error)
         if entry.bot_file_id:
             try:
                 await callback.bot.send_document(
@@ -253,12 +274,17 @@ async def on_catalog_download(
                         entry.mime_type,
                     ),
                 )
-                await callback.answer()
-                return
             except TelegramAPIError as fallback_error:
                 log.warning(
-                    "catalog document fallback failed (%s)", type(fallback_error).__name__
+                    "catalog document fallback failed (%s): %s",
+                    type(fallback_error).__name__,
+                    fallback_error,
                 )
+            else:
+                await _record_catalog_usage(session, downloads_succeeded=1)
+                await callback.answer()
+                return
+        await _record_catalog_usage(session, downloads_failed=1)
         await callback.answer(texts.CATALOG_FILE_FAILED, show_alert=True)
         await show(
             callback,
@@ -270,6 +296,8 @@ async def on_catalog_download(
             ),
         )
         return
+    await _record_catalog_usage(session, downloads_succeeded=1)
+    await callback.answer()
 
 
 @private_router.callback_query(F.data.startswith("catalog:add:"))
@@ -342,6 +370,7 @@ async def on_catalog_inline_query(
         offset = 0
     results = []
     next_offset = ""
+    search_completed = False
     if len(search_query) >= 2:
         try:
             hits, has_next = await book_catalog.search(
@@ -351,6 +380,7 @@ async def on_catalog_inline_query(
                 limit=CATALOG_INLINE_PAGE_SIZE,
                 meilisearch=catalog_search,
             )
+            search_completed = True
             for hit in hits:
                 file_name = strip_channel_handles(hit.file_name or "فایل بدون نام")
                 file_base = re.split(r"[/\\]", file_name)[-1]
@@ -384,3 +414,10 @@ async def on_catalog_inline_query(
         is_personal=True,
         next_offset=next_offset,
     )
+    if search_completed:
+        metrics = {"result_pages": 1, "results_shown": len(results)}
+        if offset == 0:
+            metrics["searches"] = 1
+            if not results:
+                metrics["empty_searches"] = 1
+        await _record_catalog_usage(session, **metrics)
