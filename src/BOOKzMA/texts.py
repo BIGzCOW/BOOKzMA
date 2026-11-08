@@ -46,13 +46,6 @@ BOOK_RESTORED = "کتاب به کتابخانه برگشت."
 BOOK_PRIVATE_ONLY = "برای حفظ حریم خصوصی، کتابخانه رو در گفت‌وگوی خصوصی با ربات باز کن."
 CATALOG_ASK_QUERY = "اسم کتاب یا بخشی از توضیحش رو بفرست تا در کتاب‌های کانال بگردم."
 CATALOG_BAD_QUERY = "عبارت جست‌وجو معتبر نیست؛ دست‌کم دو حرف بفرست."
-CATALOG_QUERY_TOO_BROAD = (
-    "نتیجه‌ها خیلی زیاد می‌شوند؛ نام نویسنده یا بخشی از عنوان را دقیق‌تر بنویس تا جست‌وجو دقیق‌تر شود."
-)
-CATALOG_QUERY_TIMEOUT = (
-    "جست‌وجو برای این عبارت خیلی گسترده بود و زمانش از حد مجاز گذشت؛ "
-    "یک بخش دقیق‌تر از عنوان یا نام نویسنده را بنویس."
-)
 CATALOG_NOT_CONFIGURED = "جست‌وجوی کتاب‌های کانال فعلاً در دسترس نیست."
 CATALOG_NO_RESULTS = "کتابی با این عبارت پیدا نکردم."
 CATALOG_SEARCH_FAILED = "الان جست‌وجو انجام نشد؛ کمی بعد دوباره امتحان کن."
@@ -422,7 +415,7 @@ def _format_mime_label(mime_type: str | None) -> str:
     else:
         ext = normalized
     label = ext.strip() or "file"
-    return f"فرمت: {label}"
+    return f"فرمت: {escape(label)}"
 
 
 def catalog_result(

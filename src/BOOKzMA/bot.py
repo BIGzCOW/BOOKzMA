@@ -19,6 +19,7 @@ from BOOKzMA.services.mesbak_scheduler import mesbak_reminder_loop
 from BOOKzMA.services.broadcast import broadcast_loop
 from BOOKzMA.services.risk_alert import risk_alert_loop
 from BOOKzMA.services.book_catalog_sync import book_catalog_sync_loop
+from BOOKzMA.services.meilisearch import MeilisearchClient
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ async def start_bot(
     settings: Settings,
     session_pool,
     bot_session: BaseSession | None = None,
+    catalog_search_client: MeilisearchClient | None = None,
 ) -> tuple[Bot, list[asyncio.Task]]:
     bot = Bot(
         token=settings.bot_token.get_secret_value(),
@@ -56,6 +58,7 @@ async def start_bot(
     dp.message.outer_middleware(membership)
     dp.callback_query.outer_middleware(membership)
     dp.workflow_data["settings"] = settings
+    dp.workflow_data["catalog_search"] = catalog_search_client
     dp.include_router(get_router())
 
     reminders_task = asyncio.create_task(reminder_loop(bot, session_pool))
@@ -73,6 +76,7 @@ async def start_bot(
                         catalog_path,
                         settings.channel_catalog_channel_username,
                         settings.channel_catalog_sync_hour_utc,
+                        meilisearch=catalog_search_client,
                     )
                 )
             )

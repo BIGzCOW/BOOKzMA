@@ -1,6 +1,6 @@
 # Testing
 
-The current suite has pure tests for streak/date calculations and freezes, book-input/progress calculations, admin configuration/callback parsing, time parsing, Persian digits, both 25-entry streak leaderboards, and API auth/helpers/routes. PostgreSQL integration tests cover same-day reading-registration concurrency, concurrent personal-book limits, multi-session page logging/idempotency/progress/ownership/archive, reminder limits, account deletion and restoration (including personal books), streak-freeze persistence, broadcast confirmation/cancellation, badges, onboarding, comeback analytics, study buddies, and Mesbak persistence/social limits. Database tests are skipped unless `TEST_DATABASE_URL` points to a disposable PostgreSQL database. Do not use production data or credentials.
+The current suite has pure tests for streak/date calculations and freezes, book-input/progress calculations, admin configuration/callback parsing, time parsing, Persian digits, both 25-entry streak leaderboards, API auth/helpers/routes, catalog normalization/document hashes, and the 51-case synthetic search fixture. Catalog handler tests cover Article-only Inline, link output, no channel-post ingestion, and preservation of private copy/add flows. PostgreSQL integration tests cover same-day reading-registration concurrency, concurrent personal-book limits, multi-session page logging/idempotency/progress/ownership/archive, reminder limits, account deletion and restoration (including personal books), catalog source reconciliation/outbox delivery, streak-freeze persistence, broadcast confirmation/cancellation, badges, onboarding, comeback analytics, study buddies, and Mesbak persistence/social limits. Database tests are skipped unless `TEST_DATABASE_URL` points to a disposable PostgreSQL database. Do not use production data or credentials.
 
 ## Environment and isolation
 
@@ -16,10 +16,21 @@ pytest -q
 
 Repository concurrency, progress/ownership/archive, KPI and cascade tests still need a disposable PostgreSQL database. See the feature-specific [handoff and smoke checklist](specs/personal-library-pages.md#تحویل-و-بررسی-قبل-از-انتشار).
 
+## Catalog Search Evaluation
+
+`tests/catalog_search_cases.json` is a deterministic synthetic corpus with 51 `(query, expected_ids)` scenarios. Unit tests validate the fixture and document normalization without Docker or external services. To run a live Meilisearch comparison, start a local test instance, configure a dedicated `MEILI_EVAL_API_KEY` scoped to `book_catalog_*` with `indexes.delete` permission, then run:
+
+```sh
+python -m BOOKzMA.evaluate_catalog_search
+```
+
+The command creates a UUID-suffixed temporary index, compares `frequency` and `last` at top 10, reports success percentage and p50/p95, and deletes that temporary index. Never point it at production. This small corpus verifies behavior, not 700K-index latency; that benchmark requires the authorized read-only SQLite catalog and deployment-sized Meilisearch.
+
 | Change | Minimum verification |
 | --- | --- |
 | Pure date/time logic | Unit tests for boundaries, timezone changes, DST, missed days, duplicates, and current-day behavior as applicable |
 | Repository or transaction behavior | Integration test against disposable PostgreSQL; include duplicate/concurrent writes and relevant constraints |
+| Catalog search/sync | Pure 51-case fixture tests; PostgreSQL-gated outbox/source reconciliation tests; run the local Meilisearch evaluator; separately benchmark the real corpus before production cutover |
 | Durable broadcast worker | Fake Telegram responses for pacing, RetryAfter, bounded retry, blocked recipients, cancel/restart recovery and the duplicate-delivery failure window |
 | Bot handler or callback | Pure parsing/validation tests where practical; manual smoke test with the separate test bot, including invalid input and Telegram failures |
 | API route or authentication | Unit/helper and route tests for authorization, invalid/expired input, ownership, validation, and response contract |

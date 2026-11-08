@@ -2,7 +2,7 @@
 
 ## شناسهٔ ROADMAP
 
-B-02 (در حال پیاده‌سازی؛ F-03 تکمیل شده)
+B-02 (ارتقای سرچ با Meilisearch در حال پیاده‌سازی؛ F-03 تکمیل شده)
 
 ## چرا
 
@@ -18,8 +18,8 @@ B-02 (در حال پیاده‌سازی؛ F-03 تکمیل شده)
   - «دریافت فایل»: کپی پیام پست اصلی با Telegram `copyMessage`؛ فایل از سرورهای Telegram منتقل می‌شود و برنامه آن را دانلود یا دوباره آپلود نمی‌کند. اگر کپی شکست بخورد و Bot API `file_id` موجود باشد، ارسال مستقیم فایل امتحان می‌شود؛ در غیر این صورت پیام خطا و لینک پست نشان داده می‌شود.
   - «افزودن به کتابخانه»: ساخت `UserBook` در وضعیت `planned` با عنوان استخراج‌شده از نام فایل؛ نویسنده اختیاری و تعداد صفحه خالی است. کتاب تا وقتی کاربر تعداد کل صفحات را وارد نکرده در سقف کتاب‌های در حال مطالعه یا استریک/آمار فعال شمرده نمی‌شود.
   - «دیدن پست کانال»: بازکردن لینک کانال.
-- جست‌وجوی داخل بات فقط در گفت‌وگوی خصوصی قابل استفاده است؛ Inline Mode در گروه‌ها و چت‌ها نتیجهٔ لینک‌دار به پست کانال می‌دهد. پیام و callback خصوصی نباید در گروه فایل را کپی کنند.
-- اگر برای Document پستی `file_id` معتبر Bot API در event آینده ثبت شده باشد، Inline می‌تواند cached document را مستقیم share کند؛ برای رکوردهای تاریخی و mediaهای فاقد Bot API file ID لینک پست استفاده می‌شود. فعال‌سازی Inline در BotFather لازم است.
+- جست‌وجوی داخل بات فقط در گفت‌وگوی خصوصی قابل استفاده است؛ Inline Mode در گروه‌ها و چت‌ها همیشه Article حاوی لینک پست کانال برمی‌گرداند و هرگز خود فایل را ارسال نمی‌کند. پیام و callback خصوصی نباید در گروه فایل را کپی کنند.
+- فعال‌سازی Inline در BotFather لازم است. دریافت خصوصی همچنان از `copyMessage` استفاده می‌کند و فایل را دانلود/بارگذاری مجدد نمی‌کند.
 
 ## اثر روی کل محصول
 
@@ -30,29 +30,30 @@ B-02 (در حال پیاده‌سازی؛ F-03 تکمیل شده)
 
 ## داده و حریم خصوصی
 
-- منبع: SQLite خارجی و پیوسته‌به‌روزشوندهٔ ابزار Telethon؛ فایل 1.88GB است و در workspace فعلی موجود نیست. SQLite فقط منبع import است؛ جست‌وجوی کاربر از PostgreSQL ربات انجام می‌شود.
+- منبع: SQLite خارجی و پیوسته‌به‌روزشوندهٔ ابزار Telethon؛ فایل 1.88GB است و در workspace فعلی موجود نیست. SQLite فقط منبع import است؛ جست‌وجوی کاربر از index مشتق‌شدهٔ Meilisearch انجام می‌شود.
 - ستون‌های تأییدشدهٔ `messages`: `message_id`, `channel_id`, `text`, `media_type`, `file_name`, `file_size`, `mime_type`, `raw_data`, `in_main`, `is_duplicate`.
 - `messages.channel_id` شناسهٔ داخلی جدول `channels` است، نه Telegram chat ID. Importer کانال را با username تنظیم‌شده پیدا می‌کند و `message_id` را برای ارسال/لینک نگه می‌دارد.
 - فقط metadata لازم از `messages` با `in_main=1` و `is_duplicate=0` کپی می‌شود: message ID، نام فایل، اندازه، MIME/media type، تاریخ، caption پاک‌سازی‌شده و search text. `raw_data`، سایر کانال‌ها، جدول `settings`، sessionها و تنظیمات Telethon هرگز به PostgreSQL منتقل نمی‌شوند.
-- هیچ فایل یا Telethon `raw_data` در PostgreSQL ذخیره نمی‌شود. `file_id` فقط اگر بعداً از Bot API update معتبر به دست آید ذخیره می‌شود.
-- sync به‌صورت incremental و batchهای کوتاه با cursor پایدار در PostgreSQL انجام می‌شود؛ cursor فقط همراه commit batch جلو می‌رود تا پس از restart تکرار batch بی‌خطر باشد. `messages.id` برای checkpoint منبع است و `(channel_username, message_id)` کلید طبیعی کاتالوگ است.
-- SQLite فقط read-only باز می‌شود؛ cursor هر batch بسته می‌شود تا قفل کوتاه بماند. sync روزانه از PostgreSQL می‌خواند و sync اولیه پس از deploy نیز اجرا می‌شود.
-- مسیر فایل، username کانال و ساعت sync از env می‌آیند؛ volume دیتابیس در Docker فقط‌خواندنی mount می‌شود. بدون مسیر معتبر، sync و جست‌وجوی کاتالوگ غیرفعال می‌مانند.
+- هیچ فایل یا Telethon `raw_data` در PostgreSQL یا Meilisearch ذخیره نمی‌شود. شناسهٔ `file_id` قدیمی ممکن است فقط برای fallback دریافت خصوصی باقی بماند.
+- PostgreSQL مرجع metadata و نگاشت `user_books.catalog_message_id` است؛ Meilisearch فقط index جست‌وجوی مشتق‌شده با سندهای keyed by `message_id` است. هر document فیلدهای search/display لازم را دارد.
+- SQLite فقط read-only باز می‌شود. هر بار sync شبانه، منبع را از ابتدا در batchهای محدود می‌خواند و با `source_row_id` و fingerprint مقایسه می‌کند؛ تغییرها و حذف‌های قبلی هم شناسایی می‌شوند. هر تغییر PostgreSQL و outbox را در یک transaction ثبت می‌کند. عملیات outbox پس از موفقیت task Meili acknowledge می‌شود و در شکست برای اجرای بعدی می‌ماند.
+- Sync منبع فقط روزی یک بار در ساعت UTC قابل تنظیم و بعد از نیمه‌شب انجام می‌شود؛ هنگام startup sync اجرا نمی‌شود. ساخت اولیه/بازیابی index فرمان مستقل `python -m BOOKzMA.reindex_catalog` است و startup بات را block نمی‌کند. batch reindex برابر ۱۰٬۰۰۰ سند است و taskها تا پایان بررسی می‌شوند.
+- مسیر فایل، username کانال، ساعت sync، URL/index و کلیدها از env می‌آیند؛ SQLite در Docker فقط‌خواندنی mount می‌شود و Meilisearch از volume پایدار استفاده می‌کند. کلید master فقط برای Meilisearch است و به کانتینر bot داده نمی‌شود. بدون فایل SQLite، source sync غیرفعال است؛ سرچ می‌تواند از index موجود Meilisearch کار کند.
 - اطلاعات `UserBook` در صورت انتخاب کاربر طبق چرخهٔ حذف حساب فعلی پاک می‌شود.
 
 ## حالت‌های خاص
 
 - هم‌زمانی: importer اتصال کوتاه read-only و batch محدود دارد؛ هرگز در SQLite نمی‌نویسد یا transaction خواندن طولانی باز نگه نمی‌دارد. PostgreSQL mirror هنگام import قابل جست‌وجو می‌ماند.
-- صفحه‌بندی: ترتیب پایدار بر اساس نام فایل و شناسهٔ پیام؛ اندازهٔ صفحه محدود است. اگر رشد/به‌روزرسانی کاتالوگ باعث ناپایداری offset شود، از cursor مبتنی بر کلید مرتب‌سازی استفاده می‌شود.
-- SQLite قفل است، در دسترس نیست یا دیر پاسخ می‌دهد: batch فعلی rollback می‌شود، cursor جلو نمی‌رود، خطای خلاصه‌شده ثبت و retry بعدی انجام می‌شود؛ updateهای ربات منتظر I/O همگام نمی‌مانند. جست‌وجوی کاربران از mirror PostgreSQL مستقل از SQLite است.
+- صفحه‌بندی: سرچ خصوصی ۶ نتیجه و Inline ۲۰ نتیجه در هر صفحه دارد؛ Meilisearch `offset/limit` و سقف ۱۰٬۰۰۰ hit اعمال می‌کند. offset محدود می‌ماند و `next_offset` Inline عددی کوتاه است.
+- SQLite قفل است، در دسترس نیست یا دیر پاسخ می‌دهد: batch فعلی rollback می‌شود و خطای خلاصه‌شده ثبت می‌شود؛ اجرای بعدی full reconcile را تکرار می‌کند. جست‌وجوی کاربران مستقل از SQLite است. اگر Meilisearch در دسترس نباشد، پیام خطای دوستانه نمایش داده می‌شود و bot/polling متوقف نمی‌شود؛ outbox تا task موفق باقی می‌ماند.
 - پیام حذف/محافظت‌شده یا غیرقابل‌کپی: خطای Telegram مدیریت می‌شود؛ اگر `file_id` Bot API ثبت نشده باشد لینک پست فقط اگر کانال عمومی و لینک معتبر باشد نمایش داده می‌شود. محدودیت‌های محافظت‌شدهٔ Telegram قابل دور زدن نیستند.
 - فایل بدون نام، `message_id` نامعتبر، نتیجهٔ تکراری یا صفحهٔ منقضی: ورودی/نتیجه رد یا به صفحهٔ اول برگردانده می‌شود؛ callback دادهٔ آزاد یا طولانی ندارد.
 - راه‌اندازی مجدد: جست‌وجو دوباره اجرا می‌شود؛ صفحه یا query ذخیرهٔ دائمی ندارد.
 
 ## امنیت و مجوز
 
-- allowlist به کانال اصلی محدود است؛ برای هر نتیجه `in_main = 1` و `is_duplicate = 0` (اگر ستون موجود باشد) اعمال می‌شود.
-- SQL فقط با پارامتر bindشده اجرا می‌شود؛ wildcardهای جست‌وجو escape می‌شوند؛ نام identifierهای ثابت از schema introspection و quote ایمن استفاده می‌کند.
+- allowlist به کانال اصلی محدود است؛ برای هر نتیجه `in_main = 1` و `is_duplicate = 0` اعمال می‌شود.
+- SQLite فقط با queryهای ثابت و پارامترهای bindشده خوانده می‌شود. حذف اسناد Meilisearch فقط از شناسه‌های عددی مثبت ساخته می‌شود؛ هیچ query text آزاد به filter یا SQL الحاق نمی‌شود.
 - همهٔ callbackها دوباره مالکیت/شکل payload را بررسی می‌کنند. قابلیت دریافت فایل باید فقط برای محتواهایی فعال شود که مالک اجازهٔ بازتوزیع آن‌ها را دارد؛ ادمین‌بودن کانال به‌تنهایی مجوز حقوقی محسوب نمی‌شود.
 - پیش از افزودن volume/config به Docker یا سرویس production، مسیر host باید توسط مالک مشخص شود. فایل SQLite زنده هرگز وارد repository یا backupهای پروژه نمی‌شود.
 
@@ -60,13 +61,13 @@ B-02 (در حال پیاده‌سازی؛ F-03 تکمیل شده)
 
 - جست‌وجوی چند کانال یا تاریخچهٔ Telegram از Bot API.
 - دانلود/آپلود مجدد فایل، OCR و جست‌وجوی متن داخل PDF.
-- Inline cached document برای رکوردهای فعلی؛ SQLite از Telethon `raw_data` نگهداری می‌کند و `file_id` Bot API ندارد. `copyMessage` هم `file_id` برنمی‌گرداند. نتیجهٔ Inline نسخهٔ اول لینک پست است.
+- ارسال فایل در Inline؛ Inline فقط Article و لینک پست کانال برمی‌گرداند. شناسهٔ `file_id` قدیمی ممکن است فقط برای fallback دریافت خصوصی باقی بماند.
 - تغییر API، افزودن وابستگی، ثبت analytics جست‌وجو یا تغییر قواعد فعلی کتابخانه شخصی.
 
 ## تصمیم‌های باز برای مالک
 
 - مسیر واقعی host و ساعت اجرای sync روزانه باید برای استقرار مشخص شوند.
-- آیا برای رکوردهای جدیدی که Bot API `file_id` دارند، Inline باید فایل را مستقیم در گروه بفرستد یا همیشه لینک پست ترجیح داده می‌شود؟
+- مسیر واقعی SQLite برای benchmark روی corpus کامل باید در اجرای owner فراهم شود؛ fixture مصنوعی جای آن را نمی‌گیرد.
 
 ## معیارهای پذیرش
 
@@ -76,8 +77,11 @@ B-02 (در حال پیاده‌سازی؛ F-03 تکمیل شده)
 - [x] probe روی دیتابیس واقعی index batch را از `idx_messages_channel` استفاده کرد و batch هزارردیفی را در حدود 21ms خواند؛ query caption روی SQLite زنده اجرا نشد.
 - [x] تست sync batch/cursor، `in_main`, حذف duplicate، متن normalized و idempotent upsert با PostgreSQL تعریف و اجرا شد.
 - [x] تست handler برای privacy، Inline link، افزودن `UserBook` بدون `total_pages` و ثبت تعداد صفحه در آینده اضافه شد.
-- [x] Inline Mode لینک پست را با pagination محدود برمی‌گرداند؛ Cached Document برای Bot API file IDهای آینده پشتیبانی شده است.
+- [x] Meilisearch v1.56.1 settings، search/task API و Article search روی instance موقت محلی اعتبارسنجی شدند.
+- [x] مجموعهٔ ۵۱ سناریوی synthetic و مقایسهٔ `frequency`/`last` اجرا شد: هر دو ۵۱/۵۱ در top-10؛ `frequency` با p95 محلی بهتر انتخاب شد. benchmark واقعی پس از دسترسی به SQLite باقی است.
+- [x] Inline فقط Article و لینک پست برمی‌گرداند و router دیگر `channel_post` ingestion ندارد.
+- [ ] تست outbox/reconcile روی PostgreSQL disposable و اجرای reindex با تطبیق شمارش end-to-end انجام شوند؛ در این workspace `TEST_DATABASE_URL` و SQLite واقعی در دسترس نبودند.
 - [ ] هیچ `raw_data`، تنظیم، شناسهٔ داخلی حساس یا فایل در log پاسخ کاربر چاپ نشود.
 - [ ] `ruff check . && pytest` و تست‌های PostgreSQL واقعی اجرا و خروجی گزارش شود.
 - [ ] Docker/developer launcher و راهنمای deployment برای مسیر خارجی و mount read-only هماهنگ شوند؛ production تا تأیید مالک لمس نشود.
-- [ ] `BOT_GUIDE.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md` در صورت تأیید فیچر به‌روز شوند.
+- [x] `BOT_GUIDE.md`, `ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, `docs/TESTING.md`, `docs/LOCAL_DEV.md`, `docs/SECURITY_PRACTICES.md`, و راهنمای Meilisearch به‌روز شدند.

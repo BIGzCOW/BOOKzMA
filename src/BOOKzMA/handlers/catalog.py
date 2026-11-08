@@ -5,20 +5,11 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
-    Animation,
-    Audio,
     CallbackQuery,
-    Document,
     InlineQuery,
     InlineQueryResultArticle,
-    InlineQueryResultCachedDocument,
     InputTextMessageContent,
     Message,
-    PhotoSize,
-    Sticker,
-    Video,
-    VideoNote,
-    Voice,
 )
 from aiogram.exceptions import TelegramAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,10 +21,9 @@ from BOOKzMA.handlers.common import show
 from BOOKzMA.repositories import book_catalog, books as books_repo, users
 from BOOKzMA.services.catalog_text import (
     clean_caption,
-    is_generic_search_query,
-    normalize_catalog_text,
     strip_channel_handles,
 )
+from BOOKzMA.services.meilisearch import MeilisearchClient
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -43,9 +33,10 @@ private_router.callback_query.filter(F.message.chat.type == "private")
 router.include_router(private_router)
 
 CATALOG_PAGE_SIZE = 6
+CATALOG_INLINE_PAGE_SIZE = 20
 CATALOG_MESSAGE_RE = re.compile(r"catalog:(open|add|download):(\d{1,20})")
 CATALOG_PAGE_RE = re.compile(r"catalog:p:(\d{1,6})")
-MAX_INLINE_OFFSET = 100_000
+MAX_CATALOG_OFFSET = 9_999
 
 
 class SearchCatalog(StatesGroup):
@@ -63,80 +54,6 @@ SEARCH_FORM_STATES = frozenset(state.state for state in SearchCatalog.__all_stat
 )
 async def on_group_catalog_callback(callback: CallbackQuery) -> None:
     await callback.answer(texts.BOOK_PRIVATE_ONLY, show_alert=True)
-
-def _message_media(
-    message: Message,
-) -> tuple[str | None, int | None, str | None, str, str | None] | None:
-    media: Document | Audio | Animation | Video | VideoNote | Voice | Sticker | PhotoSize | None
-    media_type: str
-    if message.document is not None:
-        media, media_type = message.document, "Document"
-    elif message.photo:
-        media, media_type = message.photo[-1], "photo"
-    elif message.video is not None:
-        media, media_type = message.video, "video"
-    elif message.audio is not None:
-        media, media_type = message.audio, "audio"
-    elif message.animation is not None:
-        media, media_type = message.animation, "animation"
-    elif message.voice is not None:
-        media, media_type = message.voice, "voice"
-    elif message.video_note is not None:
-        media, media_type = message.video_note, "video_note"
-    elif message.sticker is not None:
-        media, media_type = message.sticker, "sticker"
-    else:
-        return None
-
-    file_name = getattr(media, "file_name", None)
-    file_size = getattr(media, "file_size", None)
-    mime_type = getattr(media, "mime_type", None)
-    bot_file_id = media.file_id if media_type == "Document" else None
-    return file_name, file_size, mime_type, media_type, bot_file_id
-
-
-@router.channel_post()
-async def on_main_channel_media(
-    message: Message, session: AsyncSession, settings: Settings
-) -> None:
-    username = message.chat.username
-    media = _message_media(message)
-    if (
-        settings.channel_catalog_db_path is None
-        or not username
-        or username.casefold() != settings.channel_catalog_channel_username.lstrip("@").casefold()
-        or media is None
-    ):
-        return
-    file_name, file_size, mime_type, media_type, bot_file_id = media
-    _display, caption_preview, caption_search = clean_caption(
-        message.caption, settings.channel_catalog_channel_username
-    )
-    search_text = normalize_catalog_text(
-        f"{file_name or ''} {caption_search}"
-    )[:6000]
-    await book_catalog.upsert_batch(
-        session,
-        [
-            {
-                "message_id": message.message_id,
-                "source_row_id": -message.message_id,
-                "file_name": file_name,
-                "caption_preview": caption_preview or None,
-                "caption_search": caption_search,
-                "search_text": search_text,
-                "media_type": media_type,
-                "mime_type": mime_type,
-                "file_size": file_size,
-                "posted_at": message.date.isoformat(),
-                "bot_file_id": bot_file_id,
-            }
-        ],
-        next_source_row_id=-message.message_id,
-    )
-    await session.commit()
-
-
 
 def _catalog_message_id(data: str | None, action: str) -> int | None:
     match = CATALOG_MESSAGE_RE.fullmatch(data or "")
@@ -166,12 +83,14 @@ async def _search_page(
     session: AsyncSession,
     query: str,
     offset: int,
+    meilisearch: MeilisearchClient | None,
 ) -> None:
-    if is_generic_search_query(query):
-        await show(event, texts.CATALOG_QUERY_TOO_BROAD, keyboards.catalog_search_cancel_kb())
-        return
     hits, has_next = await book_catalog.search(
-        session, query, offset=offset, limit=CATALOG_PAGE_SIZE
+        session,
+        query,
+        offset=offset,
+        limit=CATALOG_PAGE_SIZE,
+        meilisearch=meilisearch,
     )
     if not hits:
         await show(event, texts.CATALOG_NO_RESULTS, keyboards.catalog_search_cancel_kb())
@@ -190,11 +109,14 @@ async def _search_page(
 
 @private_router.callback_query(F.data == "catalog:search")
 async def on_catalog_search(
-    callback: CallbackQuery, state: FSMContext, session: AsyncSession, settings: Settings
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    catalog_search: MeilisearchClient | None = None,
 ) -> None:
     await state.clear()
     await session.commit()
-    if settings.channel_catalog_db_path is None:
+    if catalog_search is None:
         await callback.answer(texts.CATALOG_NOT_CONFIGURED, show_alert=True)
         return
     await state.set_state(SearchCatalog.waiting_for_query)
@@ -206,7 +128,11 @@ async def on_catalog_search(
     SearchCatalog.waiting_for_query, F.text, flags={"book_form_input": True}
 )
 async def on_catalog_query(
-    message: Message, state: FSMContext, session: AsyncSession, settings: Settings
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    settings: Settings,
+    catalog_search: MeilisearchClient | None = None,
 ) -> None:
     _display, _preview, query = clean_caption(
         message.text or "", settings.channel_catalog_channel_username
@@ -214,17 +140,10 @@ async def on_catalog_query(
     if len(query) < 2:
         await message.answer(texts.CATALOG_BAD_QUERY)
         return
-    if is_generic_search_query(query):
-        await message.answer(texts.CATALOG_QUERY_TOO_BROAD)
-        return
     await state.update_data(catalog_query=query)
     await state.set_state(None)
     try:
-        await _search_page(message, session, query, 0)
-    except TimeoutError:
-        await session.rollback()
-        log.warning("book catalog search timed out for query=%s", query)
-        await message.answer(texts.CATALOG_QUERY_TIMEOUT)
+        await _search_page(message, session, query, 0, catalog_search)
     except Exception as error:
         await session.rollback()
         log.warning("book catalog search failed (%s)", type(error).__name__)
@@ -233,7 +152,10 @@ async def on_catalog_query(
 
 @private_router.callback_query(F.data.startswith("catalog:p:"))
 async def on_catalog_page(
-    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    catalog_search: MeilisearchClient | None = None,
 ) -> None:
     match = CATALOG_PAGE_RE.fullmatch(callback.data or "")
     data = await state.get_data()
@@ -242,16 +164,12 @@ async def on_catalog_page(
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
         return
     offset = int(match[1])
-    if offset > MAX_INLINE_OFFSET:
+    if offset > MAX_CATALOG_OFFSET:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
         return
     await callback.answer()
     try:
-        await _search_page(callback, session, query, offset)
-    except TimeoutError:
-        await session.rollback()
-        log.warning("book catalog page timed out for query=%s", query)
-        await show(callback, texts.CATALOG_QUERY_TIMEOUT, keyboards.catalog_search_cancel_kb())
+        await _search_page(callback, session, query, offset, catalog_search)
     except Exception as error:
         await session.rollback()
         log.warning("book catalog page failed (%s)", type(error).__name__)
@@ -260,7 +178,10 @@ async def on_catalog_page(
 
 @private_router.callback_query(F.data == "catalog:back")
 async def on_catalog_back(
-    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    catalog_search: MeilisearchClient | None = None,
 ) -> None:
     data = await state.get_data()
     query = data.get("catalog_query")
@@ -268,7 +189,12 @@ async def on_catalog_back(
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
         return
     await callback.answer()
-    await _search_page(callback, session, query, 0)
+    try:
+        await _search_page(callback, session, query, 0, catalog_search)
+    except Exception as error:
+        await session.rollback()
+        log.warning("book catalog search failed (%s)", type(error).__name__)
+        await show(callback, texts.CATALOG_SEARCH_FAILED, keyboards.catalog_search_cancel_kb())
 
 
 @private_router.callback_query(F.data.startswith("catalog:open:"))
@@ -399,16 +325,19 @@ async def on_catalog_add(
 
 @router.inline_query()
 async def on_catalog_inline_query(
-    query: InlineQuery, session: AsyncSession, settings: Settings
+    query: InlineQuery,
+    session: AsyncSession,
+    settings: Settings,
+    catalog_search: MeilisearchClient | None = None,
 ) -> None:
-    if settings.channel_catalog_db_path is None:
+    if catalog_search is None:
         await query.answer([], cache_time=5, is_personal=True)
         return
     _display, _preview, search_query = clean_caption(
         query.query, settings.channel_catalog_channel_username
     )
     try:
-        offset = min(max(int(query.offset or "0"), 0), MAX_INLINE_OFFSET)
+        offset = min(max(int(query.offset or "0"), 0), MAX_CATALOG_OFFSET)
     except ValueError:
         offset = 0
     results = []
@@ -416,37 +345,35 @@ async def on_catalog_inline_query(
     if len(search_query) >= 2:
         try:
             hits, has_next = await book_catalog.search(
-                session, search_query, offset=offset, limit=CATALOG_PAGE_SIZE
+                session,
+                search_query,
+                offset=offset,
+                limit=CATALOG_INLINE_PAGE_SIZE,
+                meilisearch=catalog_search,
             )
             for hit in hits:
                 file_name = strip_channel_handles(hit.file_name or "فایل بدون نام")
+                file_base = re.split(r"[/\\]", file_name)[-1]
+                if "." in file_base and not file_base.startswith("."):
+                    file_base = file_base.rsplit(".", 1)[0]
+                title = " ".join(re.sub(r"[_\-.]+", " ", file_base).split())
+                title = title or "کتاب بدون نام"
                 post_url = _channel_url(settings.channel_catalog_channel_username, hit.message_id)
                 caption = texts.catalog_result(
-                    file_name, hit.caption_preview, hit.file_size, hit.mime_type
+                    title, hit.caption_preview, hit.file_size, hit.mime_type
                 )
-                if hit.bot_file_id:
-                    results.append(
-                        InlineQueryResultCachedDocument(
-                            id=str(hit.message_id),
-                            title=file_name[:64],
-                            document_file_id=hit.bot_file_id,
-                            description=strip_channel_handles(hit.caption_preview or "")[:128],
-                            caption=caption,
-                        )
+                results.append(
+                    InlineQueryResultArticle(
+                        id=str(hit.message_id),
+                        title=title[:64],
+                        description=strip_channel_handles(
+                            hit.caption_preview or "لینک پست کانال"
+                        )[:128],
+                        input_message_content=InputTextMessageContent(
+                            message_text=f"{caption}\n<a href=\"{post_url}\">مشاهدهٔ پست</a>"
+                        ),
                     )
-                else:
-                    results.append(
-                        InlineQueryResultArticle(
-                            id=str(hit.message_id),
-                            title=file_name[:64],
-                            description=strip_channel_handles(
-                                hit.caption_preview or "لینک پست کانال"
-                            )[:128],
-                            input_message_content=InputTextMessageContent(
-                                message_text=f"{caption}\n<a href=\"{post_url}\">مشاهدهٔ پست</a>"
-                            ),
-                        )
-                    )
+                )
             if has_next:
                 next_offset = str(offset + len(hits))
         except Exception as error:

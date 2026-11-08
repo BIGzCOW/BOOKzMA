@@ -138,17 +138,35 @@ Each entry records current intent, not a claim that future work is implemented.
 
 ## D-13 — Main-Channel Book Catalog Mirror
 
-**Status:** Implementing (B-02).
+**Status:** Superseded for search behavior by D-14; PostgreSQL catalog metadata and private delivery decisions remain active.
 
 **Context:** The external Telethon worker continuously writes a 1.88GB SQLite database in `DELETE` journal mode. Its `messages` table holds about 674K rows across channels; `channel_id` is an internal SQLite ID. The owner wants search only for the public main `BOOKzMA` channel and has authorized the bot to deliver its files.
 
-**Decision:** Mount the source directory into the bot container read-only, with host path and in-container DB path configured through environment variables. A background task performs an initial sync and then daily sync at a configured UTC hour. It reads short batches off the event loop, selects only the configured channel with `in_main=1`, excludes rows flagged as duplicates, and copies searchable metadata only into PostgreSQL. It never reads `raw_data`, other channels, SQLite settings, or file bytes. A PostgreSQL checkpoint advances in the same transaction as each upsert batch, allowing restart-safe resume. User searches query PostgreSQL, never the active SQLite writer. Private delivery uses `copyMessage`; Inline uses channel-post links for historic entries and cached document results only when this bot has a Bot API `file_id`.
+**Decision:** Mount the source directory into the bot container read-only, with host path and in-container DB path configured through environment variables. A background task performs daily synchronization at a configured UTC hour. It reads short batches off the event loop, selects only the configured channel with `in_main=1`, excludes rows flagged as duplicates, and copies searchable metadata only into PostgreSQL. It never reads `raw_data`, other channels, SQLite settings, or file bytes. User searches do not query the active SQLite writer. Private delivery uses `copyMessage`; the search engine and Inline behavior are superseded by D-14.
 
-**Why:** SQLite DELETE journaling makes long-lived readers a risk to the separate writer. A metadata mirror isolates search latency, supports indexed Persian/Arabic full-text search, and avoids file download/re-upload. The source catalog is append-oriented; edits and deletions below the checkpoint are not reconciled in this version.
+**Why:** SQLite DELETE journaling makes long-lived readers a risk to the separate writer. A metadata mirror isolates search latency and avoids file download/re-upload. D-14 extends the mirror with a derived Meilisearch index and reconciliation.
 
 **Alternatives considered:** Query the live SQLite database on every search (rejected: couples user latency and DB locks to the writer); copy the full SQLite DB or file payloads (rejected: duplicates large data and adds storage/transfer cost); use only channel links (rejected for private bot search because the owner wants direct retrieval).
 
-**Revisit when:** Source posts can be edited/deleted, multiple channels are required, or source sync volume/latency changes materially.
+**Revisit when:** Multiple channels are required or source sync volume/latency changes materially.
+
+## D-14 — Meilisearch Catalog Search
+
+**Status:** Implementing (owner-approved B-02 reprioritization, 2026-11-07).
+
+**Context:** The catalog contains about 674K records according to the existing B-02 investigation. PostgreSQL FTS rejected broad queries and required AND-like term matching; users need typo tolerance, reordered query terms, and useful single-word results. The actual SQLite source is external and is not present in the current workspace.
+
+**Decision:** Keep PostgreSQL as the authoritative metadata mirror for result details, private `copyMessage`, and personal-library linkage. Use pinned Meilisearch v1.56.1 as a derived search index keyed by Telegram `message_id`; never store file bytes or Telethon `raw_data`. Searchable fields are normalized title, filename, and caption, with conservative Persian stop words, typo tolerance, empty synonyms, `frequency` matching, and `posted_at:desc` as a final ranking tie-breaker. The bot uses an index-scoped API key; the Meilisearch master key is not passed to the bot process. Index writes go through a PostgreSQL outbox so DB commits and Meili task completion are recoverable independently.
+
+**Sync and operations:** The source SQLite is opened read-only and scanned in bounded batches once daily at a configured UTC hour; source changes and deletions are reconciled by comparing source row IDs and document hashes. No catalog sync begins at bot startup. A standalone `python -m BOOKzMA.reindex_catalog` command builds the index in 10K-document batches and validates counts. Inline always returns Article links; private copy and add-to-library flows remain unchanged. A missing/unavailable Meilisearch produces a friendly search error and does not stop bot startup.
+
+**Why:** Meilisearch provides prefix matching and typo tolerance while preserving relevance-first ranking and bounded paging. PostgreSQL remains the source of truth, so the external engine can be rebuilt without losing catalog metadata or user-library relationships.
+
+**Alternatives considered:** Continue PostgreSQL FTS alone (does not meet typo/flexible matching behavior); query live SQLite (couples user latency and file locking to the external writer); use Telegram cached documents in Inline (not permitted for this flow; share only the channel post link).
+
+**Operational notes:** The search index is derived and can be rebuilt. Its persistent Docker volume is not part of PostgreSQL `pg_dump`; follow the new search runbook for recovery. Synthetic relevance/latency results do not replace a benchmark on the real source and production-sized index.
+
+**Revisit when:** The real catalog benchmark shows quality/performance gaps, source schema gains a reliable change log, or multi-channel search is approved.
 
 ## Open Decisions (Owner Only)
 
@@ -163,4 +181,4 @@ Each entry records current intent, not a claim that future work is implemented.
 - Whether a web admin panel is built and up to which tier (W-01..W-03), tied to revisiting the FastAPI decision D-01.
 - Brand tone of voice: how casual versus formal (N-07).
 - Exact policy for what a non-existent local reminder time does during DST: current implementation skips that occurrence on that date.
-- Host path for the channel SQLite directory, daily UTC sync hour, and whether future Bot API file IDs should be emitted directly in Inline Mode.
+- Host path for the channel SQLite directory and daily UTC sync hour.

@@ -97,8 +97,8 @@ def test_startup_passes_injected_bot_session(monkeypatch):
     bot = SimpleNamespace(session=SimpleNamespace(close=AsyncMock()))
     received = []
 
-    async def fake_start_bot(settings, pool, bot_session=None):
-        received.append((pool, bot_session))
+    async def fake_start_bot(settings, pool, bot_session=None, catalog_search_client=None):
+        received.append((pool, bot_session, catalog_search_client))
         return bot, []
 
     monkeypatch.setattr(
@@ -111,6 +111,6 @@ def test_startup_passes_injected_bot_session(monkeypatch):
     ) as client:
         assert client.get("/health").status_code == 200
 
-    assert received == [(session_pool, injected_session)]
+    assert received == [(session_pool, injected_session, None)]
     engine.dispose.assert_awaited_once()
     bot.session.close.assert_awaited_once()

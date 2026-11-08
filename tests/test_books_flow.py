@@ -7,7 +7,15 @@ import pytest
 from aiogram import BaseMiddleware, Bot, Dispatcher
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.memory import SimpleEventIsolation
-from aiogram.types import CallbackQuery, Chat, Document, InlineQuery, Message, Update, User
+from aiogram.types import (
+    CallbackQuery,
+    Chat,
+    InlineQuery,
+    InlineQueryResultArticle,
+    Message,
+    Update,
+    User,
+)
 
 from BOOKzMA import keyboards, texts
 from BOOKzMA.config import Settings
@@ -659,7 +667,7 @@ def test_catalog_search_is_private_and_paginates_results(dispatcher, telegram, m
     database = session()
     search = AsyncMock(
         return_value=([CatalogHit(
-            201, "برونرپوست@EppiccNURSE.pdf", None, "Document", None, 100, None
+            201, "برونرپوست@EppiccNURSE.pdf", None, "Document", None, 100
         )], True)
     )
     monkeypatch.setattr(catalog.book_catalog, "search", search)
@@ -667,6 +675,7 @@ def test_catalog_search_is_private_and_paginates_results(dispatcher, telegram, m
         bot_token="123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi",
         channel_catalog_db_path="/catalog/channel_data.db",
     )
+    catalog_search = object()
 
     async def run():
         state = dispatcher.fsm.get_context(bot=bot, chat_id=777, user_id=777)
@@ -676,14 +685,22 @@ def test_catalog_search_is_private_and_paginates_results(dispatcher, telegram, m
             Update(update_id=1, callback_query=callback("catalog:search")),
             session=database,
             settings=settings,
+            catalog_search=catalog_search,
         )
         await dispatcher.feed_update(
             bot,
             Update(update_id=2, message=message("  مرگ فروشنده @BOOKzMA  ")),
             session=database,
             settings=settings,
+            catalog_search=catalog_search,
         )
-        search.assert_awaited_once_with(database, "مرگ فروشنده", offset=0, limit=6)
+        search.assert_awaited_once_with(
+            database,
+            "مرگ فروشنده",
+            offset=0,
+            limit=6,
+            meilisearch=catalog_search,
+        )
         assert "نتیجه‌های ۱ تا ۱" in replies.call_args.args[0]
         assert "@EppiccNURSE" not in str(replies.call_args.kwargs["reply_markup"])
         assert await state.get_state() is None
@@ -701,43 +718,57 @@ def test_catalog_inline_query_in_group_returns_post_link(dispatcher, telegram, m
     )
     answer = AsyncMock()
     monkeypatch.setattr(InlineQuery, "answer", answer)
+    inline_hits = [
+        CatalogHit(
+            201 + index,
+            "برونرپوست@EppiccNURSE.pdf" if index == 0 else f"Book_{index}.pdf",
+            "caption",
+            "Document",
+            "application/pdf",
+            100,
+        )
+        for index in range(20)
+    ]
+    search = AsyncMock(return_value=(inline_hits, True))
     monkeypatch.setattr(
         catalog.book_catalog,
         "search",
-        AsyncMock(
-            return_value=(
-                [CatalogHit(
-                    201,
-                    "برونرپوست@EppiccNURSE.pdf",
-                    "caption",
-                    "Document",
-                    "application/pdf",
-                    100,
-                    None,
-                )],
-                False,
-            )
-        ),
+        search,
     )
     settings = Settings(bot_token="123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi")
     settings.channel_catalog_db_path = "/catalog/channel_data.db"
+    catalog_search = object()
+    database = session()
 
     async def run():
         await dispatcher.feed_update(
             bot,
             Update(update_id=1, inline_query=query),
-            session=session(),
+            session=database,
             settings=settings,
+            catalog_search=catalog_search,
         )
         answer.assert_awaited_once()
-        result = answer.call_args.args[0][0]
-        assert result.title == "برونرپوست.pdf"
+        results = answer.call_args.args[0]
+        assert len(results) == 20
+        assert all(isinstance(result, InlineQueryResultArticle) for result in results)
+        search.assert_awaited_once_with(
+            database,
+            "کتاب",
+            offset=0,
+            limit=20,
+            meilisearch=catalog_search,
+        )
+        result = results[0]
+        assert isinstance(result, InlineQueryResultArticle)
+        assert result.title == "برونرپوست"
         assert "https://t.me/BOOKzMA/201" in result.input_message_content.message_text
+        assert len(answer.call_args.kwargs["next_offset"].encode()) <= 64
 
     asyncio.run(run())
 
 
-def test_catalog_search_is_disabled_without_source_path(dispatcher, telegram, monkeypatch):
+def test_catalog_search_is_disabled_without_meilisearch(dispatcher, telegram, monkeypatch):
     bot, _replies = telegram
     search = AsyncMock(side_effect=AssertionError("catalog query must be disabled"))
     monkeypatch.setattr(catalog.book_catalog, "search", search)
@@ -757,6 +788,10 @@ def test_catalog_search_is_disabled_without_source_path(dispatcher, telegram, mo
         search.assert_not_awaited()
 
     asyncio.run(run())
+
+
+def test_catalog_router_has_no_channel_post_ingestion_handler():
+    assert not catalog.router.observers["channel_post"].handlers
 
 
 def test_catalog_result_uses_human_size_and_format_label():
@@ -1065,53 +1100,6 @@ def test_support_block_requires_admin_and_blocks_ticket_creation(
         assert await dispatcher.fsm.get_context(
             bot=bot, chat_id=777, user_id=777
         ).get_state() is None
-
-    asyncio.run(run())
-
-
-def test_channel_post_ingestion_indexes_only_configured_channel(dispatcher, telegram, monkeypatch):
-    bot, _replies = telegram
-    upsert = AsyncMock()
-    monkeypatch.setattr(catalog.book_catalog, "upsert_batch", upsert)
-    channel_chat = Chat(
-        id=-100123,
-        type="channel",
-        title="BOOKzMA",
-        username="BOOKzMA",
-    )
-    post = Message(
-        message_id=501,
-        date=datetime(2026, 11, 3, tzinfo=timezone.utc),
-        chat=channel_chat,
-        caption="کتاب آزمایشی @BOOKzMA",
-        document=Document(
-            file_id="bot-file-id",
-            file_unique_id="unique-file-id",
-            file_name="کتاب.pdf",
-            mime_type="application/pdf",
-            file_size=1024,
-        ),
-    )
-    settings = Settings(
-        bot_token="123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi",
-        channel_catalog_db_path="/catalog/channel_data.db",
-    )
-    database = session()
-
-    async def run():
-        await dispatcher.feed_update(
-            bot,
-            Update(update_id=1, channel_post=post),
-            session=database,
-            settings=settings,
-        )
-        values = upsert.await_args.args[1][0]
-        assert values["message_id"] == 501
-        assert values["source_row_id"] == -501
-        assert values["bot_file_id"] == "bot-file-id"
-        assert "bookzma" not in values["search_text"]
-        assert "raw_data" not in values
-        database.commit.assert_awaited_once()
 
     asyncio.run(run())
 

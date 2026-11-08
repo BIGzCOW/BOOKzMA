@@ -17,7 +17,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from BOOKzMA.constants import DEFAULT_TIMEZONE
@@ -155,6 +155,7 @@ class BookCatalogEntry(Base):
     file_size: Mapped[int | None] = mapped_column(BigInteger)
     posted_at: Mapped[str | None] = mapped_column(String(64))
     bot_file_id: Mapped[str | None] = mapped_column(String(512))
+    document_hash: Mapped[str | None] = mapped_column(String(64))
     search_vector: Mapped[str] = mapped_column(
         TSVECTOR,
         Computed(
@@ -171,6 +172,26 @@ class BookCatalogSyncState(Base):
     source_row_id: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(255))
+
+
+class BookCatalogIndexOutbox(Base):
+    __tablename__ = "book_catalog_index_outbox"
+    __table_args__ = (
+        UniqueConstraint("message_id", name="uq_book_catalog_outbox_message"),
+        CheckConstraint("operation IN ('upsert', 'delete')", name="ck_book_catalog_outbox_op"),
+        Index("ix_book_catalog_outbox_created", "created_at", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(BigInteger)
+    operation: Mapped[str] = mapped_column(String(8))
+    document: Mapped[dict | None] = mapped_column(JSONB)
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class PageLog(Base):

@@ -1,8 +1,8 @@
 # Stabilization Progress
 
 Status date: 2026-11-07
-Branch: feat/telegram-ux-and-streak-protection
-Owner mandate: all work is for stabilization before new features; no new feature work outside the approved scope.
+Branch: feat/meilisearch-book-search
+Owner mandate: stabilization remains required for unrelated work. On 2026-11-07 the owner explicitly reprioritized the existing B-02 catalog-search scope to implement the Meilisearch migration before closing the remaining stabilization backlog. No other unchecked item below is considered complete.
 
 ## Execution log
 
@@ -31,6 +31,8 @@ Owner mandate: all work is for stabilization before new features; no new feature
 - [x] Add tests for the generic query rejection and the normalization guard path.
 - [ ] Update the spec and docs for the implemented behavior if the repo’s current spec should be extended beyond the code-level guard.
 
+**B-02 reprioritization:** The owner-approved Meilisearch migration supersedes the PostgreSQL broad-query guard above. Generic single-word queries are now allowed by the search contract; unrelated stabilization phases below remain open.
+
 ### Phase 3 — Stabilization backlog in the required order
 - [ ] F-02 — security cleanup and no-secret drift
 - [ ] F-12 — pre-commit and secret-scan enforcement
@@ -56,9 +58,9 @@ Owner mandate: all work is for stabilization before new features; no new feature
 ## Current evidence state
 - `docs/ROADMAP.md` clearly labels several items as active/in-progress, but the repo still has a mixed set of statuses and several claims that need independent verification.
 - The migration files `0021_reminder_message_cleanup.py`, `0022_personal_book_notes.py`, and `0023_independent_streak_freezes.py` exist, but their actual migration chain and downgrade support require explicit validation.
-- `docs/specs/channel-book-search.md` exists and documents the B-02 goal, but the actual performance bottleneck remains to be reproduced under a synthetic large dataset.
+- B-02's prior PostgreSQL broad-query guard was reproduced synthetically and is superseded by D-14. The Meilisearch evaluator now passes 51 synthetic queries for both strategies; a real SQLite schema/relevance/latency benchmark remains blocked because the external source file is not in this workspace.
 
 ## Working branch and commit state
-- Branch: feat/telegram-ux-and-streak-protection
-- Current status: dirty working tree; preserved without resets as required in the task instructions.
-- No final stabilization commit yet; commit history will be added only after each verified slice is completed.
+- Branch: feat/meilisearch-book-search
+- Current status: feature changes are in progress on the isolated branch; no user changes were discarded.
+- No commit has been created; broader stabilization work remains pending.

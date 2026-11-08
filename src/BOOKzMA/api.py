@@ -27,6 +27,7 @@ from BOOKzMA.repositories import readings, reminders, users
 from BOOKzMA.repositories import streak_freezes
 from BOOKzMA.services.streak import longest_streak, weekly_summary
 from BOOKzMA.services.streak_freezes import on_read
+from BOOKzMA.services.meilisearch import MeilisearchClient
 from BOOKzMA.utils import local_today
 
 log = logging.getLogger(__name__)
@@ -204,10 +205,23 @@ async def _lifespan(app: FastAPI):
     app.state.session_pool = session_pool
     bot = None
     tasks = []
+    catalog_search_client = None
+    if settings.meili_url is not None and settings.meili_api_key is not None:
+        catalog_search_client = MeilisearchClient(
+            str(settings.meili_url),
+            settings.meili_api_key.get_secret_value(),
+            settings.meili_index_name,
+            timeout=settings.meili_timeout_seconds,
+            matching_strategy=settings.meili_matching_strategy,
+        )
+    app.state.catalog_search_client = catalog_search_client
     try:
         if app.state.run_bot:
             bot, tasks = await start_bot(
-                settings, session_pool, bot_session=app.state.bot_session
+                settings,
+                session_pool,
+                bot_session=app.state.bot_session,
+                catalog_search_client=catalog_search_client,
             )
         yield
     finally:
@@ -217,6 +231,8 @@ async def _lifespan(app: FastAPI):
             await asyncio.gather(*tasks, return_exceptions=True)
         if bot is not None:
             await bot.session.close()
+        if catalog_search_client is not None:
+            await catalog_search_client.aclose()
         await engine.dispose()
 
 
