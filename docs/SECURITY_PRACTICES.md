@@ -31,6 +31,8 @@ Before adding a user-data feature, inventory data in tables, caches, FSM state, 
 
 Keep PostgreSQL bound to loopback unless a reviewed deployment design requires otherwise. Avoid privileged containers and unnecessary mounts. Do not put credentials in Dockerfile or Compose literals. Keep secrets in runtime environment configuration. Never run migrations or commands against production from an agent session.
 
+Meilisearch runs with `MEILI_ENV=production` and a master key of at least 16 bytes. The master key is only for Meilisearch administration and is explicitly blanked in the bot container. The bot uses an index-scoped `MEILI_API_KEY`; relevance evaluation uses a separate `MEILI_EVAL_API_KEY` because it creates and deletes temporary indexes. Do not publish Meilisearch beyond loopback/private Docker networking. Its index contains only normalized catalog metadata, never file bytes or Telethon `raw_data`; the persistent volume is derived data and is rebuilt with the documented reindex command.
+
 ## Repository Findings (Current Audit)
 
 - `.env` is ignored. The shared `dev_run.py` is tracked, confirmed from Git metadata; neither file's contents were inspected for the personal-library change.

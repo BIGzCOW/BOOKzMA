@@ -1,46 +1,18 @@
+import hashlib
+import json
 import re
 import unicodedata
+from collections.abc import Mapping
 
 
 CAPTION_SEARCH_LIMIT = 4000
 CAPTION_PREVIEW_LIMIT = 220
 SEARCH_TEXT_LIMIT = 6000
 CHANNEL_HANDLE_RE = re.compile(r"@[A-Za-z0-9_]{5,32}")
-GENERIC_SEARCH_WORDS = {
-    "کتاب",
-    "کتاب‌ها",
-    "کتابها",
-    "رمان",
-    "رمان‌ها",
-    "رمانها",
-    "داستان",
-    "داستان‌ها",
-    "داستانها",
-    "نویسنده",
-    "نویسندگان",
-    "پی‌دی‌اف",
-    "pdf",
-    "epub",
-    "مقاله",
-    "فایل",
-    "book",
-    "books",
-}
-
-
-def is_generic_search_query(value: str) -> bool:
-    normalized = normalize_catalog_text(value)
-    if not normalized:
-        return True
-    tokens = [token for token in normalized.split() if token]
-    if len(tokens) == 1:
-        token = tokens[0]
-        return len(token) < 3 or token in GENERIC_SEARCH_WORDS
-    if len(tokens) <= 2:
-        return len(" ".join(tokens)) < 5
-    return False
-
-
+PERSIAN_PLURAL_SUFFIX_RE = re.compile(r"(?<=[\u0600-\u06ff])ها\b")
+PERSIAN_DIGIT_TRANSLATION = str.maketrans(
+    "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"
+)
 def strip_channel_handles(value: str | None) -> str:
     if value is None:
         return ""
@@ -71,7 +43,51 @@ def normalize_catalog_text(value: str) -> str:
         for character in normalized
         if unicodedata.category(character) != "Mn"
     )
+    normalized = normalized.translate(PERSIAN_DIGIT_TRANSLATION)
+    normalized = PERSIAN_PLURAL_SUFFIX_RE.sub(" ها", normalized)
     return re.sub(r"\s+", " ", normalized).strip().lower()
+
+
+def build_search_document(
+    *,
+    message_id: int,
+    file_name: str | None,
+    caption_preview: str | None,
+    caption_search: str,
+    file_size: int | None,
+    mime_type: str | None,
+    media_type: str | None,
+    posted_at: str | None,
+) -> dict[str, int | str | None]:
+    display_file_name = strip_channel_handles(file_name) or None
+    title_source = display_file_name or ""
+    title_source = re.split(r"[/\\]", title_source)[-1]
+    if "." in title_source and not title_source.startswith("."):
+        title_source = title_source.rsplit(".", 1)[0]
+    title = normalize_catalog_text(re.sub(r"[_\-.]+", " ", title_source))
+
+    return {
+        "id": message_id,
+        "title": title,
+        "file_name": normalize_catalog_text(display_file_name or ""),
+        "display_file_name": display_file_name,
+        "caption": normalize_catalog_text(caption_search),
+        "caption_preview": caption_preview,
+        "file_size": file_size,
+        "mime_type": mime_type,
+        "media_type": media_type,
+        "posted_at": posted_at,
+    }
+
+
+def search_document_hash(document: Mapping[str, object]) -> str:
+    serialized = json.dumps(
+        document,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def clean_caption(value: str | None, channel_username: str) -> tuple[str, str, str]:

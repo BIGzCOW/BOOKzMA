@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from pydantic import Field, SecretStr, model_validator
+from typing import Literal
+
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,20 +13,23 @@ class DatabaseSettings(BaseSettings):
     database_url: str = "postgresql+asyncpg://bookzma:bookzma@localhost:5433/bookzma"
 
 
-class Settings(DatabaseSettings):
-    bot_token: SecretStr
-    telegram_proxy: SecretStr | None = None
-    web_origins: str = ""
-    admin_telegram_ids: str = ""
-    github_url: str = ""
-    support_telegram_username: str = ""
-    backup_dir: str = "backups"
-    backup_keep_local: int = 1
-    rate_limit_max_updates: int = 20
-    rate_limit_window_seconds: int = 10
+class CatalogSettings(DatabaseSettings):
     channel_catalog_db_path: Path | None = None
     channel_catalog_channel_username: str = "BOOKzMA"
     channel_catalog_sync_hour_utc: int = Field(default=3, ge=0, le=23)
+    meili_url: AnyHttpUrl | None = None
+    meili_api_key: SecretStr | None = None
+    meili_eval_api_key: SecretStr | None = None
+    meili_index_name: str = Field(default="book_catalog", pattern=r"^[A-Za-z0-9_-]+$")
+    meili_matching_strategy: Literal["frequency", "last"] = "frequency"
+    meili_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+
+    @field_validator("meili_api_key", "meili_eval_api_key", mode="before")
+    @classmethod
+    def empty_meili_api_key_is_unset(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="after")
     def resolve_catalog_path(self) -> "Settings":
@@ -51,6 +56,19 @@ class Settings(DatabaseSettings):
                 self.channel_catalog_db_path = candidate
                 return self
         return self
+
+
+class Settings(CatalogSettings):
+    bot_token: SecretStr
+    telegram_proxy: SecretStr | None = None
+    web_origins: str = ""
+    admin_telegram_ids: str = ""
+    github_url: str = ""
+    support_telegram_username: str = ""
+    backup_dir: str = "backups"
+    backup_keep_local: int = 1
+    rate_limit_max_updates: int = 20
+    rate_limit_window_seconds: int = 10
 
     @property
     def admin_ids(self) -> frozenset[int]:

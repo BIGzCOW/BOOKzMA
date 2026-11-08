@@ -16,6 +16,26 @@ services:
       timeout: 3s
       retries: 10
 
+  meilisearch:
+    image: getmeili/meilisearch:v1.56.1
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY رو در .env تنظیم کن}
+      MEILI_DB_PATH: /meili_data
+      MEILI_MAX_INDEXING_MEMORY: ${MEILI_MAX_INDEXING_MEMORY:-1Gb}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meilidata:/meili_data
+    ports:
+      - "127.0.0.1:7700:7700"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:7700/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
   bot:
     build: .
     restart: unless-stopped
@@ -23,6 +43,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://bookzma:${POSTGRES_PASSWORD}@db:5432/bookzma
       BACKUP_DIR: /backups
+      MEILI_URL: http://meilisearch:7700
+      MEILI_MASTER_KEY: ""
+      MEILI_EVAL_API_KEY: ""
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -34,3 +57,4 @@ services:
 
 volumes:
   pgdata:
+  meilidata:

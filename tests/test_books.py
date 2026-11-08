@@ -4,7 +4,11 @@ from collections import defaultdict
 from BOOKzMA import keyboards, texts
 from BOOKzMA.handlers.catalog import _book_title
 from BOOKzMA.services.books import normalize_author, normalize_title, progress_percent
-from BOOKzMA.services.book_catalog_sync import _read_source_batch, clean_caption
+from BOOKzMA.services.book_catalog_sync import (
+    _read_source_batch,
+    clean_caption,
+    seconds_until_next_sync,
+)
 from BOOKzMA.utils import parse_positive_int
 
 
@@ -81,6 +85,18 @@ def test_catalog_batch_reads_only_main_channel_metadata(tmp_path):
     assert "raw_data" not in batch.entries[0]
 
 
+def test_catalog_sync_waits_until_the_next_configured_utc_hour():
+    from datetime import datetime, timezone
+
+    before = datetime(2026, 11, 7, 2, 0, tzinfo=timezone.utc)
+    at_hour = datetime(2026, 11, 7, 3, 0, tzinfo=timezone.utc)
+    after = datetime(2026, 11, 7, 4, 0, tzinfo=timezone.utc)
+
+    assert seconds_until_next_sync(before, 3) == 3600
+    assert seconds_until_next_sync(at_hour, 3) == 24 * 3600
+    assert seconds_until_next_sync(after, 3) == 23 * 3600
+
+
 def test_book_text_escapes_user_values_and_callbacks_stay_bounded():
     detail = texts.book_detail("<script>", "A & B", 10, 100, "reading")
 
@@ -127,6 +143,13 @@ def test_catalog_file_size_is_rounded_to_one_decimal_place():
     result = texts.catalog_result("کتاب.pdf", None, 21_999_999, "application/pdf")
 
     assert "حجم: ۲۱ مگابایت" in result
+
+
+def test_catalog_mime_type_is_escaped_in_html_output():
+    result = texts.catalog_result("کتاب.pdf", None, None, "application/<b>spoof</b>")
+
+    assert "فرمت: &lt;b&gt;spoof&lt;/b&gt;" in result
+    assert "فرمت: <b>spoof</b>" not in result
 
 
 def test_admin_dashboard_shows_book_archive_and_page_session_metrics():
