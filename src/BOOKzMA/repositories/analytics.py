@@ -1,12 +1,14 @@
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import Date, cast, func, select
+from sqlalchemy import Date, case, cast, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from BOOKzMA.db.models import (
     ActivityDay,
     Badge,
     BuddyPair,
+    CatalogUsageDay,
     MesbakEntry,
     MesbakBuddyPair,
     MesbakBuddyQueue,
@@ -161,6 +163,101 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
         or 0,
     }
+    usage_row = await session.execute(
+        select(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.searches,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_searches_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(thirty_days_ago, today),
+                            CatalogUsageDay.searches,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_searches_30d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.result_pages,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_result_pages_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.results_shown,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_results_shown_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.empty_searches,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_empty_searches_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.downloads_succeeded,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_downloads_succeeded_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.downloads_failed,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_downloads_failed_7d"),
+        )
+    )
+    counts.update(usage_row.one()._mapping)
+    counts["catalog_books_added_7d"] = await session.scalar(
+        select(func.count()).select_from(UserBook).where(
+            UserBook.catalog_message_id.is_not(None),
+            UserBook.created_at >= now - timedelta(days=7),
+        )
+    ) or 0
     counts["inactive_30d"] = await _inactive_starters(session, thirty_days_ago)
     counts.update(await retention_rates(session, today))
     counts.update(await streak_stats(session))
@@ -173,6 +270,38 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
     counts["accounts_deleted"] = deleted_total
     counts["deletions_7d"] = deleted_recent
     return counts
+
+
+async def record_catalog_usage(session: AsyncSession, **increments: int) -> None:
+    allowed = {
+        "searches",
+        "result_pages",
+        "results_shown",
+        "empty_searches",
+        "downloads_succeeded",
+        "downloads_failed",
+    }
+    if not increments or increments.keys() - allowed:
+        raise ValueError("invalid catalog usage metrics")
+    if any(type(value) is not int or value < 0 for value in increments.values()):
+        raise ValueError("catalog usage increments must be non-negative integers")
+    increments = {name: value for name, value in increments.items() if value}
+    if not increments:
+        return
+
+    statement = insert(CatalogUsageDay).values(
+        day=datetime.now(timezone.utc).date(), **increments
+    )
+    await session.execute(
+        statement.on_conflict_do_update(
+            index_elements=[CatalogUsageDay.day],
+            set_={
+                name: getattr(CatalogUsageDay, name) + getattr(statement.excluded, name)
+                for name in increments
+            },
+        )
+    )
+    await session.commit()
 
 
 async def activity_series(

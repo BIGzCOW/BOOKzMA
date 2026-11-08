@@ -160,6 +160,14 @@ def test_admin_dashboard_shows_book_archive_and_page_session_metrics():
             "books_added_7d": 3,
             "books_archived_7d": 2,
             "books_restored_7d": 1,
+            "catalog_searches_7d": 15,
+            "catalog_searches_30d": 42,
+            "catalog_result_pages_7d": 20,
+            "catalog_results_shown_7d": 86,
+            "catalog_empty_searches_7d": 3,
+            "catalog_books_added_7d": 5,
+            "catalog_downloads_succeeded_7d": 7,
+            "catalog_downloads_failed_7d": 1,
             "page_sessions_7d": 8,
             "pages_7d": 120,
             "page_counts_set_7d": 2,
@@ -175,6 +183,9 @@ def test_admin_dashboard_shows_book_archive_and_page_session_metrics():
 
     assert "کتاب‌های آرشیوشده: ۴" in report
     assert "افزوده/آرشیو/بازگردانی در ۷ روز: ۳ / ۲ / ۱" in report
+    assert "جستجو ۷/۳۰ روز: ۱۵ / ۴۲" in report
+    assert "صفحه/نتیجه/بی‌نتیجهٔ ۷روزه: ۲۰ / ۸۶ / ۳" in report
+    assert "ارسال فایل کاتالوگ ۷ روزه · موفق/ناموفق: ۷ / ۱" in report
     assert "نشست/صفحهٔ مطالعه در ۷ روز: ۸ / ۱۲۰" in report
     assert "تنظیم تعداد صفحات در ۷ روز: ۲" in report
     assert "تیکت باز/جدید: ۵ / ۳" in report

@@ -20,7 +20,7 @@ from BOOKzMA.services.meilisearch import MeilisearchClient
 
 log = logging.getLogger(__name__)
 BATCH_SIZE = 1000
-REINDEX_BATCH_SIZE = 10_000
+REINDEX_BATCH_SIZE = 2_500
 OUTBOX_BATCH_SIZE = 1000
 
 
