@@ -357,7 +357,7 @@ def test_catalog_outbox_acknowledge_and_record_failure():
                 await book_catalog.queue_index_upserts(session, [doc])
                 await book_catalog.queue_index_deletes(session, [message_id + 1])
 
-            async with pool() as session:
+            async with pool.begin() as session:
                 pending = await book_catalog.pending_index_operations(session, limit=10)
                 assert len(pending) == 2
                 await book_catalog.acknowledge_index_operations(session, pending)

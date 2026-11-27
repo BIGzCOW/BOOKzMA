@@ -53,6 +53,26 @@ Never assume: open the actual file and verify the behavior before documenting or
 - Do not add dependencies, expand the API, add Redis/webhooks/admin panels, or implement roadmap items without an approved spec and owner approval.
 - Never connect to production, inspect private configuration, run the bot with a real token, or run destructive data commands. Never run `docker compose down -v` unless the owner confirms the data is disposable.
 
+## Minimal Diff and Change Scope
+
+This rule applies to all tasks in this project from now on:
+
+1. **Minimal Diff:** Only change files directly necessary to complete the task. Avoid modifying unrelated files.
+
+2. **No Unnecessary Rewrites:** Do not regenerate files solely for cleanup, standardization, rewriting, structural changes, or cosmetic improvements.
+
+3. **Preserve Formatting:** Preserve existing line endings (LF/CRLF), encoding, spacing, and formatting of files. Do not run formatters on the entire project; only check files directly related to the task.
+
+4. **Preserve Existing Architecture:** Before implementing, review the project's existing structure and patterns. Use existing patterns where possible. Do not change unrelated architecture or conventions for a scoped task.
+
+5. **Protect User Changes:** Do not delete or rewrite prior user changes. Do not use destructive Git commands without explicit confirmation.
+
+6. **Diff Review:** Before completing any task, run `git status --short`, `git diff --stat`, and `git diff --check` and review changes. Ensure all changes directly relate to the task.
+
+7. **Unexpected Diff:** If the number of changed files or diff size is unexpectedly large, stop, investigate the cause, and report it without deleting user changes.
+
+8. **Final Report:** In the final report, list new, modified, and deleted files with the reason for each change.
+
 ## Stop and Ask
 
 Ask before adding a dependency, changing schema or deployment configuration, changing streak/reminder semantics or membership/access behavior, deleting data/files, sending messages at scale, or requiring a secret. Bug fixes within an existing layer, focused tests, copy edits, behavior-preserving refactors, and documentation updates may proceed.
