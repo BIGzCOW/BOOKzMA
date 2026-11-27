@@ -1,8 +1,12 @@
 import asyncio
+import fcntl
+import gzip
 import importlib.util
 import logging
 import os
 import re
+import shutil
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,10 +16,10 @@ from BOOKzMA.config import Settings
 
 log = logging.getLogger(__name__)
 
-BACKUP_NAME_RE = re.compile(r"^bookzma-(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})\.dump$")
+BACKUP_NAME_RE = re.compile(r"^pgdump_(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})\.sql\.gz$")
+LOCK_FILE = "pgbackup.lock"
+MIN_BACKUP_SIZE = 1024
 DUMP_TIMEOUT_SEC = 900
-RESTORE_TIMEOUT_SEC = 1800
-STDERR_LOG_LIMIT = 500
 
 
 class BackupError(RuntimeError):
@@ -40,7 +44,7 @@ class BackupInfo:
 
 
 def backup_filename(now: datetime) -> str:
-    return "bookzma-" + now.astimezone(timezone.utc).strftime("%Y-%m-%d-%H%M%S") + ".dump"
+    return "pgdump_" + now.astimezone(timezone.utc).strftime("%Y-%m-%d_%H%M") + ".sql.gz"
 
 
 def parse_backup_name(name: str) -> datetime | None:
@@ -50,7 +54,6 @@ def parse_backup_name(name: str) -> datetime | None:
     try:
         return datetime(*(int(part) for part in match.groups()), tzinfo=timezone.utc)
     except ValueError:
-        # الگو درست است ولی تاریخ نامعتبر است (مثل ماه ۱۳)
         return None
 
 
@@ -84,7 +87,6 @@ def parse_dump_target(database_url: str) -> DumpTarget:
 
 
 def _source_root() -> Path:
-    # find_spec سورس را پیدا می‌کند بدون اینکه پکیج را اجرا کند
     spec = importlib.util.find_spec("BOOKzMA")
     if spec is None or spec.origin is None:
         return Path.cwd()
@@ -92,7 +94,6 @@ def _source_root() -> Path:
 
 
 def is_unsafe_backup_dir(backup_dir: Path | str) -> bool:
-    """پوشهٔ repo/backups مجاز است؛ هر مسیر داخل src/ غیرمجاز است."""
     root = _source_root()
     resolved = Path(backup_dir).resolve()
     if resolved == root / "backups":
@@ -134,10 +135,6 @@ def _pg_env(target: DumpTarget) -> dict[str, str]:
     return {**os.environ, "PGPASSWORD": target.password}
 
 
-def _stderr_tail(stderr: bytes) -> str:
-    return stderr.decode(errors="replace").strip()[-STDERR_LOG_LIMIT:]
-
-
 def _is_unsupported_transaction_timeout(stderr: bytes) -> bool:
     expected_error = (
         b"pg_restore: error: could not execute query: ERROR:  unrecognized configuration "
@@ -152,39 +149,49 @@ def _is_unsupported_transaction_timeout(stderr: bytes) -> bool:
     )
 
 
-async def _run_pg(args: list[str], target: DumpTarget, *, timeout: int) -> bytes:
+def _verify_gzip(path: Path) -> bool:
+    """سنجش سالم بودن فایل gzip و اندازه حداقل."""
+    try:
+        if path.stat().st_size < MIN_BACKUP_SIZE:
+            return False
+        with gzip.open(path, "rb") as f:
+            f.read()
+        return True
+    except Exception:
+        return False
+
+
+async def _run_pg_dump_to_file(target: DumpTarget, out_path: Path, *, timeout: int) -> None:
     try:
         proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.DEVNULL,
+            "pg_dump",
+            "-h",
+            target.host,
+            "-p",
+            str(target.port),
+            "-U",
+            target.user,
+            "-d",
+            target.dbname,
+            "-Fc",
+            stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=_pg_env(target),
         )
     except FileNotFoundError as exc:
-        tool = Path(args[0]).name
         raise BackupError(
-            f"ابزار {tool} پیدا نشد؛ برای بکاپ/بازگردانی محلی PostgreSQL client را نصب کن."
+            "ابزار pg_dump پیدا نشد؛ برای بکاپ محلی بستهٔ PostgreSQL client را نصب کن."
         ) from exc
     try:
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except TimeoutError:
         proc.kill()
-        raise BackupError("عملیات بیش از حد طول کشید و متوقف شد.")
+        raise BackupError("بکاپ بیش از حد طول کشید و متوقف شد.")
     if proc.returncode != 0:
-        if Path(args[0]).name == "pg_restore" and _is_unsupported_transaction_timeout(stderr):
-            log.warning(
-                "pg_restore skipped unsupported transaction_timeout setting on target server"
-            )
-            return b""
-        tail = _stderr_tail(stderr)
-        log.error(
-            "postgres client failed tool=%s rc=%s stderr=%s",
-            Path(args[0]).name,
-            proc.returncode,
-            tail,
-        )
+        tail = stderr.decode(errors="replace").strip()[-500:]
+        log.error("pg_dump failed rc=%s stderr=%s", proc.returncode, tail)
         raise BackupError("ابزار پایگاه داده با خطا متوقف شد.")
-    return stderr
+    out_path.write_bytes(stdout)
 
 
 async def run_backup(settings: Settings, *, now: datetime | None = None) -> BackupInfo:
@@ -193,63 +200,71 @@ async def run_backup(settings: Settings, *, now: datetime | None = None) -> Back
     if is_unsafe_backup_dir(backup_dir):
         raise BackupError("مسیر بکاپ نباید داخل سورس پروژه باشد.")
     backup_dir.mkdir(parents=True, exist_ok=True)
-    path = backup_dir / backup_filename(now or datetime.now(timezone.utc))
-    try:
-        os.chmod(backup_dir, 0o700)
-    except OSError:
-        log.info("backup dir chmod skipped path=%s", backup_dir)
 
-    log.info(
-        "backup start file=%s path=%s host=%s db=%s",
-        path.name,
-        path,
-        target.host,
-        target.dbname,
-    )
-    with path.open("wb") as out:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "pg_dump",
-                "-h",
-                target.host,
-                "-p",
-                str(target.port),
-                "-U",
-                target.user,
-                "-d",
-                target.dbname,
-                "-Fc",
-                stdout=out,
-                stderr=asyncio.subprocess.PIPE,
-                env=_pg_env(target),
-            )
-        except FileNotFoundError as exc:
-            path.unlink(missing_ok=True)
-            raise BackupError(
-                "ابزار pg_dump پیدا نشد؛ برای بکاپ محلی بستهٔ PostgreSQL client را نصب کن."
-            ) from exc
-        try:
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=DUMP_TIMEOUT_SEC)
-        except TimeoutError:
-            proc.kill()
-            path.unlink(missing_ok=True)
-            raise BackupError("بکاپ بیش از حد طول کشید و متوقف شد.")
-    if proc.returncode != 0 or path.stat().st_size == 0:
-        tail = _stderr_tail(stderr)
-        log.error("backup failed file=%s rc=%s stderr=%s", path.name, proc.returncode, tail)
-        path.unlink(missing_ok=True)
-        raise BackupError("گرفتن بکاپ ناموفق بود؛ جزئیات در لاگ.")
-
+    lock_path = backup_dir / LOCK_FILE
+    lock_fd = open(lock_path, "w")
     try:
-        os.chmod(path, 0o600)
-    except OSError:
-        log.info("backup file chmod skipped path=%s", path)
-    local_names = [p.name for p in backup_dir.iterdir() if p.is_file()]
-    for old in select_to_delete(local_names, settings.backup_keep_local):
-        (backup_dir / old).unlink(missing_ok=True)
-    info = BackupInfo(path.name, path.stat().st_size, datetime.now(timezone.utc), path)
-    log.info("backup done file=%s path=%s size=%d", info.name, path, info.size_bytes)
-    return info
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise BackupError("یک بکاپ دیگر در حال اجرا است. کمی بعد دوباره امتحان کن.")
+
+        final_name = backup_filename(now or datetime.now(timezone.utc))
+        final_path = backup_dir / final_name
+
+        fd, tmp_str = tempfile.mkstemp(dir=backup_dir, suffix=".tmp")
+        os.close(fd)
+        tmp_path = Path(tmp_str)
+        tmp_sql = backup_dir / (final_name + ".sql.tmp")
+
+        try:
+            await _run_pg_dump_to_file(target, tmp_sql, timeout=DUMP_TIMEOUT_SEC)
+
+            with open(tmp_sql, "rb") as f_in:
+                with gzip.open(tmp_path, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            tmp_sql.unlink(missing_ok=True)
+
+            if not _verify_gzip(tmp_path):
+                raise BackupError("فایل بکاپ تولید‌شده معتبر نیست.")
+
+            os.replace(tmp_path, final_path)
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            tmp_sql.unlink(missing_ok=True)
+            raise
+
+        try:
+            os.chmod(final_path, 0o600)
+        except OSError:
+            log.info("backup file chmod skipped path=%s", final_path)
+
+        log.info(
+            "backup start file=%s path=%s host=%s db=%s",
+            final_name,
+            final_path,
+            target.host,
+            target.dbname,
+        )
+
+        local_names = [
+            p.name for p in backup_dir.iterdir() if p.is_file() and parse_backup_name(p.name)
+        ]
+        for old in select_to_delete(local_names, settings.backup_keep_local):
+            (backup_dir / old).unlink(missing_ok=True)
+
+        info = BackupInfo(
+            final_name, final_path.stat().st_size, datetime.now(timezone.utc), final_path
+        )
+        log.info("backup done file=%s path=%s size=%d", info.name, final_path, info.size_bytes)
+        return info
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        lock_fd.close()
+        lock_path.unlink(missing_ok=True)
 
 
 async def run_restore(settings: Settings, filename: str) -> None:
@@ -259,27 +274,48 @@ async def run_restore(settings: Settings, filename: str) -> None:
     if not path.is_file():
         raise BackupError("این فایل بکاپ الان موجود نیست.")
     target = parse_dump_target(settings.database_url)
+    backup_dir = _resolved_backup_dir(settings.backup_dir)
     log.info("restore start file=%s host=%s db=%s", filename, target.host, target.dbname)
-    stderr = await _run_pg(
-        [
-            "pg_restore",
-            "--no-owner",
-            "--no-acl",
-            "--clean",
-            "--if-exists",
-            "-h",
-            target.host,
-            "-p",
-            str(target.port),
-            "-U",
-            target.user,
-            "-d",
-            target.dbname,
-            str(path),
-        ],
-        target,
-        timeout=RESTORE_TIMEOUT_SEC,
-    )
-    if stderr:
-        log.info("restore notices file=%s stderr=%s", filename, _stderr_tail(stderr))
+
+    decompressed = backup_dir / (filename + ".dec")
+    try:
+        with gzip.open(path, "rb") as f_in:
+            decompressed.write_bytes(f_in.read())
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "pg_restore",
+                "--no-owner",
+                "--no-acl",
+                "--clean",
+                "--if-exists",
+                "-h",
+                target.host,
+                "-p",
+                str(target.port),
+                "-U",
+                target.user,
+                "-d",
+                target.dbname,
+                str(decompressed),
+                stderr=asyncio.subprocess.PIPE,
+                env=_pg_env(target),
+            )
+        except FileNotFoundError as exc:
+            raise BackupError(
+                "ابزار pg_restore پیدا نشد؛ برای بازگردانی محلی بستهٔ PostgreSQL client را نصب کن."
+            ) from exc
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=DUMP_TIMEOUT_SEC * 2)
+        if proc.returncode != 0:
+            if _is_unsupported_transaction_timeout(stderr):
+                log.warning(
+                    "pg_restore skipped unsupported transaction_timeout setting on target server"
+                )
+            else:
+                tail = stderr.decode(errors="replace").strip()[-500:]
+                log.error("pg_restore failed rc=%s stderr=%s", proc.returncode, tail)
+                raise BackupError("بازگردانی بکاپ با خطا متوقف شد.")
+    finally:
+        decompressed.unlink(missing_ok=True)
+
     log.info("restore done file=%s", filename)

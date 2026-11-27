@@ -777,7 +777,7 @@ def test_catalog_inline_query_in_group_returns_post_link(dispatcher, telegram, m
         assert "https://t.me/BOOKzMA/201" in result.input_message_content.message_text
         assert len(answer.call_args.kwargs["next_offset"].encode()) <= 64
         record_usage.assert_awaited_once_with(
-            database, result_pages=1, results_shown=20, searches=1
+            database, result_pages=1, inline_results_shown=20, inline_searches=1
         )
 
     asyncio.run(run())

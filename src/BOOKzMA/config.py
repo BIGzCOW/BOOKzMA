@@ -66,7 +66,7 @@ class Settings(CatalogSettings):
     github_url: str = ""
     support_telegram_username: str = ""
     backup_dir: str = "backups"
-    backup_keep_local: int = 1
+    backup_keep_local: int = 3
     rate_limit_max_updates: int = 20
     rate_limit_window_seconds: int = 10
     log_level: str = "INFO"

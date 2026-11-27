@@ -393,6 +393,117 @@ def test_catalog_outbox_acknowledge_and_record_failure():
     asyncio.run(run_test())
 
 
+def test_catalog_full_sync_outbox_acknowledge_cycle(tmp_path: Path):
+    """Full sync_once → outbox flush → Meilisearch acknowledge cycle."""
+    class FakeMeilisearch:
+        def __init__(self) -> None:
+            self.documents = {}
+            self.deleted = set()
+
+        async def add_documents(self, documents, *, wait=True):
+            for document in documents:
+                self.documents[document["id"]] = dict(document)
+
+        async def delete_documents(self, message_ids, *, wait=True):
+            for message_id in message_ids:
+                self.deleted.add(message_id)
+
+    async def run_test() -> None:
+        engine = create_async_engine(TEST_DATABASE_URL)
+        pool = async_sessionmaker(engine, expire_on_commit=False)
+        source_database = tmp_path / "channel_data.db"
+        connection = sqlite3.connect(source_database)
+        connection.executescript(
+            """
+            CREATE TABLE channels (id INTEGER, username TEXT, is_main INTEGER);
+            CREATE TABLE messages (
+                id INTEGER, message_id INTEGER, channel_id INTEGER, file_name TEXT,
+                file_size INTEGER, mime_type TEXT, media_type TEXT, date TEXT,
+                text TEXT, in_main INTEGER, is_duplicate INTEGER, raw_data TEXT
+            );
+            INSERT INTO channels VALUES (24, 'BOOKzMA', 1);
+            INSERT INTO messages VALUES
+                (5, 201, 24, 'Book One.pdf', 1000, 'application/pdf', 'Document',
+                 '2026-11-03', 'اولین کتاب', 1, 0, 'PRIVATE_RAW'),
+                (6, 202, 24, 'Book Two.pdf', 2000, 'application/pdf', 'Document',
+                 '2026-11-03', 'دومین کتاب', 1, 0, 'PRIVATE_RAW');
+            """
+        )
+        connection.close()
+        search_index = FakeMeilisearch()
+        try:
+            imported = await sync_once(pool, source_database, "BOOKzMA", meilisearch=search_index)
+            assert imported == 2
+            async with pool() as session:
+                assert await book_catalog.pending_operation_count(session) == 0
+                assert set(search_index.documents) == {201, 202}
+                assert await session.get(BookCatalogEntry, 201) is not None
+                assert await session.get(BookCatalogEntry, 202) is not None
+        finally:
+            async with pool.begin() as session:
+                await session.execute(
+                    delete(BookCatalogIndexOutbox).where(
+                        BookCatalogIndexOutbox.message_id.in_([201, 202])
+                    )
+                )
+                await session.execute(
+                    delete(BookCatalogEntry).where(BookCatalogEntry.message_id.in_([201, 202]))
+                )
+                await session.execute(
+                    update(BookCatalogSyncState)
+                    .where(BookCatalogSyncState.key == "main")
+                    .values(source_row_id=0, last_success_at=None, last_error=None)
+                )
+            await engine.dispose()
+
+    asyncio.run(run_test())
+
+
+def test_catalog_outbox_flush_then_acknowledge_clears_outbox():
+    """Queue outbox ops, flush via FakeMeilisearch, then acknowledge → outbox empty."""
+    async def run_test() -> None:
+        engine = create_async_engine(TEST_DATABASE_URL)
+        pool = async_sessionmaker(engine, expire_on_commit=False)
+        message_id = 7_000_000_000_000_000_000 + random.randrange(1_000_000_000)
+        try:
+            doc = build_search_document(
+                message_id=message_id,
+                file_name="Book.pdf",
+                caption_preview="Caption",
+                caption_search="Caption",
+                file_size=1000,
+                mime_type="application/pdf",
+                media_type="Document",
+                posted_at="2026-11-07T10:00:00+00:00",
+            )
+            async with pool.begin() as session:
+                await book_catalog.queue_index_upserts(session, [doc])
+                await book_catalog.queue_index_deletes(session, [message_id + 1])
+
+            async with pool() as session:
+                pending = await book_catalog.pending_index_operations(session, limit=10)
+                assert len(pending) == 2
+
+            # Flush (simulate successful Meilisearch task) then acknowledge
+            async with pool.begin() as session:
+                pending = await book_catalog.pending_index_operations(session, limit=10)
+                await book_catalog.acknowledge_index_operations(session, pending)
+
+            async with pool() as session:
+                pending = await book_catalog.pending_index_operations(session, limit=10)
+                assert len(pending) == 0
+        finally:
+            async with pool.begin() as session:
+                await session.execute(
+                    delete(BookCatalogIndexOutbox).where(
+                        BookCatalogIndexOutbox.message_id.in_([message_id, message_id + 1])
+                    )
+                )
+            await engine.dispose()
+
+    asyncio.run(run_test())
+
+
 def test_catalog_outbox_hash_dedup_prevents_duplicate_upserts():
     async def run_test() -> None:
         engine = create_async_engine(TEST_DATABASE_URL)

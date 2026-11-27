@@ -179,13 +179,15 @@ def test_admin_dashboard_shows_book_archive_and_page_session_metrics():
 
     report = texts.admin_dashboard(stats, [])
 
-    assert "کتاب‌های آرشیوشده: ۴" in report
-    assert "افزوده/آرشیو/بازگردانی در ۷ روز: ۳ / ۲ / ۱" in report
-    assert "جستجو ۷/۳۰ روز: ۱۵ / ۴۲" in report
+    assert "آرشیوشده: ۴" in report
+    assert "افزوده ۷ روزه: ۳" in report
+    assert "آرشیو/بازگردانی ۷ روزه: ۲ / ۱" in report
+    assert "خصوصی ۷/۳۰ روزه: ۱۵ / ۴۲" in report
     assert "صفحه/نتیجه/بی‌نتیجهٔ ۷روزه: ۲۰ / ۸۶ / ۳" in report
-    assert "ارسال فایل کاتالوگ ۷ روزه · موفق/ناموفق: ۷ / ۱" in report
-    assert "نشست/صفحهٔ مطالعه در ۷ روز: ۸ / ۱۲۰" in report
-    assert "تنظیم تعداد صفحات در ۷ روز: ۲" in report
+    assert "افزوده به کتابخانه: ۵" in report
+    assert "فایل ارسال شده ۷ روزه: ۷ / ناموفق: ۱" in report
+    assert "نشست/صفحه مطالعه ۷ روزه: ۸ / ۱۲۰" in report
+    assert "تنظیم تعداد صفحات ۷ روزه: ۲" in report
     assert "تیکت باز/جدید: ۵ / ۳" in report
     assert "پیام/پاسخ ۷روزه: ۹ / ۸" in report
     assert "مسدود: ۱" in report

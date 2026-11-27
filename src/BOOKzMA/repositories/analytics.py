@@ -251,6 +251,54 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
                 ),
                 0,
             ).label("catalog_downloads_failed_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.inline_searches,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_inline_searches_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(thirty_days_ago, today),
+                            CatalogUsageDay.inline_searches,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_inline_searches_30d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.inline_results_shown,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_inline_results_shown_7d"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            CatalogUsageDay.day.between(seven_days_ago, today),
+                            CatalogUsageDay.inline_empty_searches,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("catalog_inline_empty_searches_7d"),
         )
     )
     counts.update(usage_row.one()._mapping)
@@ -285,6 +333,9 @@ async def record_catalog_usage(session: AsyncSession, **increments: int) -> None
         "empty_searches",
         "downloads_succeeded",
         "downloads_failed",
+        "inline_searches",
+        "inline_results_shown",
+        "inline_empty_searches",
     }
     if not increments or increments.keys() - allowed:
         raise ValueError("invalid catalog usage metrics")

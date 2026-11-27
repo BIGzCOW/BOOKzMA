@@ -130,6 +130,7 @@ The existing FastAPI app is in `api.py`; the container runs it through Uvicorn. 
 | `book_catalog_entries` | PostgreSQL mirror of main `BOOKzMA` channel metadata only; message ID primary key, source-row ID, filename/caption/media metadata, optional legacy Bot API file ID, indexed-document hash and dormant `search_text`/GIN vector for rollback; no file bytes or raw Telethon payload |
 | `book_catalog_sync_state` | Singleton `main` high-water source row, last successful full reconcile time, and last exception class |
 | `book_catalog_index_outbox` | One deduplicated pending upsert/delete per Telegram message ID; stores only the Meilisearch metadata document, revision, attempts and last exception class |
+| `catalog_usage_days` | Daily catalog usage aggregates: private `searches`, `result_pages`, `results_shown`, `empty_searches`, `downloads_succeeded`/`failed`; inline `inline_searches`, `inline_results_shown`, `inline_empty_searches`; all non-negative integers with per-day primary key |
 | `streak_freezes` | Habit-specific (`reading`/`mesbak`) earned/used/gifted quantities; real events are unique by user/habit/kind/day; gifts link to an audited operation; cascades with user deletion |
 | `freeze_gift_operations` | Admin, habit, audience, requested amount, preview/result totals, status and timestamps; no user names or message content |
 | `freeze_gift_recipients` | Per-operation user snapshot, preview/credited amounts and result; user and operation FKs cascade |

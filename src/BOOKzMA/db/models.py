@@ -169,7 +169,8 @@ class CatalogUsageDay(Base):
     __table_args__ = (
         CheckConstraint(
             "searches >= 0 AND result_pages >= 0 AND results_shown >= 0 "
-            "AND empty_searches >= 0 AND downloads_succeeded >= 0 AND downloads_failed >= 0",
+            "AND empty_searches >= 0 AND downloads_succeeded >= 0 AND downloads_failed >= 0 "
+            "AND inline_searches >= 0 AND inline_results_shown >= 0 AND inline_empty_searches >= 0",
             name="ck_catalog_usage_day_nonnegative",
         ),
     )
@@ -181,6 +182,9 @@ class CatalogUsageDay(Base):
     empty_searches: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     downloads_succeeded: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     downloads_failed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    inline_searches: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    inline_results_shown: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    inline_empty_searches: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class BookCatalogIndexOutbox(Base):
