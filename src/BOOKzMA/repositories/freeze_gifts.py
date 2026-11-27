@@ -57,9 +57,7 @@ async def _eligible_user_ids(
     return list(await session.scalars(statement.order_by(User.id)))
 
 
-async def _balances(
-    session: AsyncSession, user_ids: list[int], habit: str
-) -> dict[int, int]:
+async def _balances(session: AsyncSession, user_ids: list[int], habit: str) -> dict[int, int]:
     if not user_ids:
         return {}
     credits = func.coalesce(
@@ -160,10 +158,7 @@ async def confirm(
     snapshot_ids = [recipient.user_id for recipient in recipients]
     if snapshot_ids:
         await session.scalars(
-            select(User.id)
-            .where(User.id.in_(snapshot_ids))
-            .order_by(User.id)
-            .with_for_update()
+            select(User.id).where(User.id.in_(snapshot_ids)).order_by(User.id).with_for_update()
         )
         if operation.habit == "mesbak":
             await session.scalars(
@@ -172,9 +167,7 @@ async def confirm(
                 .order_by(MesbakProfile.user_id)
                 .with_for_update()
             )
-    eligible_ids = await _eligible_user_ids(
-        session, operation.habit, user_ids=snapshot_ids
-    )
+    eligible_ids = await _eligible_user_ids(session, operation.habit, user_ids=snapshot_ids)
     eligible = set(eligible_ids)
     balances = await _balances(session, eligible_ids, operation.habit)
 
@@ -188,9 +181,7 @@ async def confirm(
             new_status = "skipped"
             preview_skipped += 1
         else:
-            new_units = _grant_units(
-                operation.requested_amount, balances.get(recipient.user_id, 0)
-            )
+            new_units = _grant_units(operation.requested_amount, balances.get(recipient.user_id, 0))
             new_status = "pending" if new_units else "capped"
             preview_units += new_units
             preview_capped += new_units == 0
@@ -237,9 +228,7 @@ async def confirm(
     return _summary(operation)
 
 
-async def cancel(
-    session: AsyncSession, admin_id: int, operation_id: int
-) -> bool:
+async def cancel(session: AsyncSession, admin_id: int, operation_id: int) -> bool:
     operation = await session.scalar(
         select(FreezeGiftOperation)
         .where(FreezeGiftOperation.id == operation_id, FreezeGiftOperation.admin_id == admin_id)

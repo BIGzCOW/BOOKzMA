@@ -80,12 +80,9 @@ ACCOUNT_DELETE_TYPE = (
 ACCOUNT_DELETE_BAD_WORD = (
     "کلمهٔ تأیید درست نیست. فقط کافیه <code>حذف</code> رو بنویسی، یا با دکمهٔ پایین منصرف شو."
 )
-ACCOUNT_DELETE_FINAL = (
-    "آخرین قدم! با زدن دکمهٔ زیر، حسابت و تمام داده‌هات بدون راه برگشت پاک می‌شه."
-)
+ACCOUNT_DELETE_FINAL = "آخرین قدم! با زدن دکمهٔ زیر، حسابت و تمام داده‌هات بدون راه برگشت پاک می‌شه."
 ACCOUNT_DELETED_DONE = (
-    "حسابت همراه با همهٔ داده‌هاش پاک شد. 🌙\n"
-    "امیدواریم دوباره ببینیمت؛ هر وقت خواستی برگرد."
+    "حسابت همراه با همهٔ داده‌هاش پاک شد. 🌙\nامیدواریم دوباره ببینیمت؛ هر وقت خواستی برگرد."
 )
 ACCOUNT_DELETE_CANCELLED = "باشه، حذف لغو شد. خوشحالیم که هنوز اینجایی 🙂"
 # پیام خنثی برای کاربر سنگ‌قبری؛ نباید به وجود حساب قبلی اشاره کند
@@ -141,9 +138,7 @@ RESTORE_CONFIRM = (
     "برای تأیید بازگردانی، کلمهٔ <code>بازیابی</code> رو بنویس و بفرست.\n"
     "با دکمهٔ پایین می‌تونی منصرف شی."
 )
-RESTORE_BAD_WORD = (
-    "کلمهٔ تأیید درست نبود. فقط کافیه <code>بازیابی</code> رو بنویسی، یا منصرف شی."
-)
+RESTORE_BAD_WORD = "کلمهٔ تأیید درست نبود. فقط کافیه <code>بازیابی</code> رو بنویسی، یا منصرف شی."
 RESTORE_RUNNING = "⏳ در حال بازگردانی… ممکنه چند ثانیه طول بکشه."
 RESTORE_DONE = (
     "✅ بازگردانی انجام شد.\n\n"
@@ -178,21 +173,15 @@ MORE_MENU = "از اینجا به خلاصه، لیدربورد و راه‌ها
 PROFILE_SETTINGS_MENU = "تنظیمات پروفایل و برنامهٔ روزانه‌ات رو از اینجا مدیریت کن."
 ONBOARDING_DONE = "یادآورت فعاله ⏰ حالا هر روز سر وقت بهت یادآوری می‌کنم."
 ONBOARDING_SKIPPED = "باشه! هر وقت خواستی از منوی «⏰ یادآورها» بذار 🙂"
-WELCOME_BACK = (
-    "چه خوب که برگشتی! 👋\n"
-    "هر چقدر هم غیبت شد، مهم نیست؛ از همین امروز دوباره شروع کنیم."
-)
+WELCOME_BACK = "چه خوب که برگشتی! 👋\nهر چقدر هم غیبت شد، مهم نیست؛ از همین امروز دوباره شروع کنیم."
 COMEBACK_BROKEN = (
     "😌 استریک {days} روزه‌ات تموم شد؛ اتفاق می‌افده. ولی از دست نرفته:\n"
     "۳ روز پشت‌سرهم بخون تا نصفش پس بگیری 💪"
 )
 COMEBACK_PROGRESS = "🔁 روز {done} از ۳ برای پس‌گرفتن استریک. ادامه بده!"
-COMEBACK_RESTORED = (
-    "🎉 آفرین! {added} روز به استریکت برگشت؛ الان {total} روزه‌ای."
-)
+COMEBACK_RESTORED = "🎉 آفرین! {added} روز به استریکت برگشت؛ الان {total} روزه‌ای."
 RISK_ALERT = (
-    "⚠️ <b>استریکت در خطره!</b>\n"
-    "امروز هنوز نخوندی. همین یه مطالعهٔ کوچیک هم روزت رو نجات می‌ده."
+    "⚠️ <b>استریکت در خطره!</b>\nامروز هنوز نخوندی. همین یه مطالعهٔ کوچیک هم روزت رو نجات می‌ده."
 )
 BUDDY_INTRO = (
     "🤝 <b>رفیق مطالعه</b>\n\n"
@@ -217,8 +206,7 @@ BUDDY_INVITE_BUSY = (
 BUDDY_INVITE_UNAVAILABLE = "این لینک معتبر نیست، منقضی شده یا قبلاً استفاده شده."
 BUDDY_ALREADY_QUEUED = "اول از صف ناشناس خارج شو، بعد می‌تونی لینک دعوت بسازی."
 BUDDY_WAITING = (
-    "دنبال رفیق می‌گردیم... 🔍\n"
-    "به‌محض پیدا شدن، خبرت می‌کنم. این صفحه رو می‌تونی هر وقت ببینی."
+    "دنبال رفیق می‌گردیم... 🔍\nبه‌محض پیدا شدن، خبرت می‌کنم. این صفحه رو می‌تونی هر وقت ببینی."
 )
 BUDDY_LEFT_QUEUE = "انتظار لغو شد."
 BUDDY_MATCHED_SELF = "🤝 رفیقت پیدا شد: <b>{name}</b>! از «🤝 رفیق مطالعه» وضعیتش رو دنبال کن."
@@ -235,12 +223,9 @@ MESBAK_BUDDY_NUDGE_PROMPT = (
 MESBAK_BUDDY_NUDGE_DISMISSED = "باشه؛ هر وقت خواستی از فهرست رفیق‌های مسباک تلنگر بزن."
 MESBAK_MENU_HINT = "بخش‌های اصلی مسباک از منوی پایین در دسترس‌اند."
 MESBAK_SETTINGS_TITLE = (
-    "⚙️ <b>تنظیمات مسباک</b>\n\n"
-    "هدف و زمان‌های یادآوری را از دکمه‌های همین صفحه تغییر بده."
+    "⚙️ <b>تنظیمات مسباک</b>\n\nهدف و زمان‌های یادآوری را از دکمه‌های همین صفحه تغییر بده."
 )
-BUDDY_ENDED = (
-    "هم‌یاری تمام شد. بدون دلخوری؛ هر وقت خواستی دوباره می‌تونی رفیق پیدا کنی 👋"
-)
+BUDDY_ENDED = "هم‌یاری تمام شد. بدون دلخوری؛ هر وقت خواستی دوباره می‌تونی رفیق پیدا کنی 👋"
 
 
 def buddy_screen(name: str, streak: int, read_today: bool) -> str:
@@ -355,9 +340,7 @@ def bookshelf(
     total_count = visible + archived_count if total_count is None else total_count
     lines = [title, ""]
     if archived:
-        lines.extend(
-            [f"کتاب‌های آرشیوشده: {fa(visible)}", f"کل کتاب‌ها: {fa(total_count)}"]
-        )
+        lines.extend([f"کتاب‌های آرشیوشده: {fa(visible)}", f"کل کتاب‌ها: {fa(total_count)}"])
     else:
         lines.extend(
             [
@@ -382,18 +365,11 @@ def bookshelf(
 
 
 def catalog_results(query: str, first: int, last: int) -> str:
-    return (
-        f"🔎 نتایج جست‌وجو برای <b>{escape(query)}</b>\n"
-        f"نتیجه‌های {fa(first)} تا {fa(last)}"
-    )
+    return f"🔎 نتایج جست‌وجو برای <b>{escape(query)}</b>\nنتیجه‌های {fa(first)} تا {fa(last)}"
 
 
 def book_added(title: str, total_pages: int) -> str:
-    return (
-        "کتاب اضافه شد ✅\n\n"
-        f"📖 <b>{escape(title)}</b>\n"
-        f"تعداد صفحات: {fa(total_pages)}"
-    )
+    return f"کتاب اضافه شد ✅\n\n📖 <b>{escape(title)}</b>\nتعداد صفحات: {fa(total_pages)}"
 
 
 def _format_file_size(size_bytes: int | None) -> str:
@@ -435,10 +411,7 @@ def catalog_result(
     clean_name = strip_channel_handles(file_name or "فایل بدون نام")
     clean_caption = strip_channel_handles(caption_preview)
     caption_line = f"\n\n{escape(clean_caption)}" if clean_caption else ""
-    return (
-        f"📚 <b>{escape(clean_name or 'فایل بدون نام')}</b>"
-        f"{detail_line}{caption_line}"
-    )
+    return f"📚 <b>{escape(clean_name or 'فایل بدون نام')}</b>{detail_line}{caption_line}"
 
 
 def book_detail(
@@ -482,10 +455,7 @@ def book_note(title: str, note: str | None) -> str:
 
 def book_ask_pages(title: str, remaining: int) -> str:
     title = strip_channel_handles(title)
-    return (
-        f"امروز چند صفحه از <b>{escape(title)}</b> خوندی؟\n"
-        f"صفحات باقی‌مانده: {fa(remaining)}"
-    )
+    return f"امروز چند صفحه از <b>{escape(title)}</b> خوندی؟\nصفحات باقی‌مانده: {fa(remaining)}"
 
 
 def book_pages_over(remaining: int) -> str:
@@ -512,9 +482,7 @@ def pages_logged(
 
 def book_archive_confirm(title: str) -> str:
     title = strip_channel_handles(title)
-    return (
-        f"کتاب <b>{escape(title)}</b> آرشیو بشه؟\n\n"
-    )
+    return f"کتاب <b>{escape(title)}</b> آرشیو بشه؟\n\n"
 
 
 def comeback_line(change, total_streak: int) -> str | None:
@@ -557,8 +525,7 @@ def read_toast(
         message += "\n🛡️ فریزت دیروز رو پوشش داد و استریکت حفظ شد."
     if freeze_earned:
         message += (
-            f"\n🎁 یک فریز جایزه گرفتی؛ موجودی: "
-            f"{fa(freeze_balance)}/{fa(MAX_STREAK_FREEZES)}"
+            f"\n🎁 یک فریز جایزه گرفتی؛ موجودی: {fa(freeze_balance)}/{fa(MAX_STREAK_FREEZES)}"
         )
     if comeback:
         message += f"\n{comeback}"
@@ -586,11 +553,7 @@ def custom_time() -> str:
 
 
 def timezone(tz_label: str) -> str:
-    return (
-        "🌍 <b>منطقه زمانی</b>\n\n"
-        f"الان: {tz_label}\n"
-        "یادآورها و «امروز» بر اساس همین حساب می‌شن."
-    )
+    return f"🌍 <b>منطقه زمانی</b>\n\nالان: {tz_label}\nیادآورها و «امروز» بر اساس همین حساب می‌شن."
 
 
 def weekly_summary(days_read: int, streak: int, best: int, freeze_balance: int) -> str:
@@ -644,8 +607,7 @@ def streak_leaderboard(scores: list[tuple[int, str]]) -> str:
 
 def support() -> str:
     return (
-        "💬 <b>پشتیبانی و ارتباط</b>\n\n"
-        "برای گزارش مشکل، پیشنهاد یا انتقاد، پیام پشتیبانی بفرست. "
+        "💬 <b>پشتیبانی و ارتباط</b>\n\nبرای گزارش مشکل، پیشنهاد یا انتقاد، پیام پشتیبانی بفرست. "
     )
 
 
@@ -661,10 +623,7 @@ SUPPORT_TICKET_MISSING = "این تیکت پیدا نشد یا بسته شده."
 SUPPORT_USER_BLOCKED = "امکان ارسال پیام به پشتیبانی برای حسابت غیرفعال شده."
 SUPPORT_BLOCKED = "کاربر از پشتیبانی مسدود شد."
 SUPPORT_UNBLOCKED = "مسدودی کاربر برداشته شد."
-SUPPORT_ADMIN_TICKET = (
-    "✉️ تیکت #{ticket_id} از <b>{name}</b>\n"
-    "شناسه کاربر: <code>{user_id}</code>"
-)
+SUPPORT_ADMIN_TICKET = "✉️ تیکت #{ticket_id} از <b>{name}</b>\nشناسه کاربر: <code>{user_id}</code>"
 
 FREEZE_GIFT_SELECT = "فریز موردنظر برای هدیه را انتخاب کن:"
 FREEZE_GIFT_ASK_AMOUNT = "تعداد فریز موردنظر برای هر کاربر را بفرست؛ عددی بین ۱ تا ۱۰۰۰."
@@ -775,8 +734,7 @@ def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> 
 def reminder_push(streak: int) -> str:
     if streak:
         return (
-            "⏰ <b>وقت مطالعه‌ست!</b>\n"
-            f"🔥 استریک {fa(streak)} روزه‌ات منتظرته، امروز هم ادامه بده."
+            f"⏰ <b>وقت مطالعه‌ست!</b>\n🔥 استریک {fa(streak)} روزه‌ات منتظرته، امروز هم ادامه بده."
         )
     return "⏰ <b>وقت مطالعه‌ست!</b>\nامروز یه استریک جدید شروع کن 🔥"
 
@@ -821,9 +779,7 @@ def mesbak_screen(
     ]
     lines.extend(f"نوبت {fa(index)} · {value}" for index, value in enumerate(times, 1))
     if pending_goal is not None and pending_date is not None:
-        lines.extend(
-            ["", f"هدف {fa(pending_goal)} نوبتی از {pending_date} اعمال می‌شود."]
-        )
+        lines.extend(["", f"هدف {fa(pending_goal)} نوبتی از {pending_date} اعمال می‌شود."])
     if completed >= goal:
         lines.extend(["", "🎉 سهمیهٔ امروزت کامل شد!"])
     badge_labels = {"streak_7": "۷ روز", "streak_30": "۳۰ روز", "streak_100": "۱۰۰ روز"}
@@ -874,14 +830,11 @@ def mesbak_weekly(
         f"درصد تکمیل: {fa(round(completed_days * 100 / 7))}%\n"
         f"استریک فعلی: {fa(streak)} روز\n"
         f"بهترین رکورد: {fa(best)} روز\n\n"
-        f"فریز موجود: {fa(freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}\n\n"
-        + "\n".join(days)
+        f"فریز موجود: {fa(freeze_balance)}/{fa(MAX_MESBAK_FREEZES)}\n\n" + "\n".join(days)
     )
 
 
-def mesbak_monthly(
-    completed_days: int, streak: int, best: int, freeze_balance: int = 0
-) -> str:
+def mesbak_monthly(completed_days: int, streak: int, best: int, freeze_balance: int = 0) -> str:
     return (
         "📅 <b>گزارش مسباک · ۳۰ روز اخیر</b>\n\n"
         f"روزهای کامل: {fa(completed_days)} از ۳۰\n"
@@ -914,9 +867,7 @@ def mesbak_league(rows: list[tuple[int, str, int]], opted_in: bool) -> str:
     if not rows:
         return "🏆 <b>لیگ مسباک</b>\n\nهنوز کسی در لیگ نیست؛ اولین نفر تو باش!"
     lines = ["🏆 <b>لیگ هفتگی مسباک</b>"]
-    for rank, (_user_id, name, completed) in enumerate(
-        rows[:STREAK_LEADERBOARD_LIMIT], 1
-    ):
+    for rank, (_user_id, name, completed) in enumerate(rows[:STREAK_LEADERBOARD_LIMIT], 1):
         safe_name = escape(name.replace("\n", " ")[:48])
         lines.append(f"{fa(rank)}. {safe_name} · {fa(completed)} روز کامل")
     if not opted_in:
@@ -932,8 +883,7 @@ def mesbak_buddies(rows: list[tuple[int, str]], queued: bool = False) -> str:
         )
     if not rows:
         return (
-            "🤝 <b>رفیق‌های مسباک</b>\n\n"
-            "هنوز رفیقی نداری؛ دوستت رو دعوت کن یا رفیق ناشناس پیدا کن."
+            "🤝 <b>رفیق‌های مسباک</b>\n\nهنوز رفیقی نداری؛ دوستت رو دعوت کن یا رفیق ناشناس پیدا کن."
         )
     friends = "\n".join(
         f"{fa(index)}. <b>{mesbak_buddy_name(name)}</b>"

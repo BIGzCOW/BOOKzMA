@@ -55,4 +55,3 @@ Tool call and tool response are agent-only (and toolbox). An agent's guardrail f
 | `Microsoft.Default` | Base default policy (4 categories) | No |
 | `Microsoft.DefaultV2` | Updated default with jailbreak + protected material | No |
 | Custom policies | User-created policies | Yes |
-

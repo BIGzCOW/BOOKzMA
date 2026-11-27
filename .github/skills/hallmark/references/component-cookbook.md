@@ -261,5 +261,3 @@ Below 60 rem the archetype must still feel like itself — same hierarchy, same 
 - Disable any scroll-linked animation below 40 rem (mobile scroll has its own physics; layered animations fight it).
 - Image `loading="lazy"` always below the fold; **never on the LCP element regardless of viewport.**
 - Auto-play video respects `data-saver` (`navigator.connection.saveData`) — replaces with poster when set.
-
-

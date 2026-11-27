@@ -33,9 +33,7 @@ LOOKBACK_DAYS = 4
 MIN_STREAK_AT_RISK = 2
 
 
-def is_at_risk(
-    today: date_type, read_days: set[date_type], frozen_days: set[date_type]
-) -> bool:
+def is_at_risk(today: date_type, read_days: set[date_type], frozen_days: set[date_type]) -> bool:
     """استریک واقعی ≥۲ که تا دیروز ادامه داشته و امروز هنوز ثبت نشده."""
     if today in read_days:
         return False
@@ -47,9 +45,7 @@ def is_at_risk(
 
 
 def _in_send_window(now: datetime) -> bool:
-    window_end = (
-        datetime.combine(now.date(), RISK_ALERT_TIME, tzinfo=now.tzinfo) + SEND_WINDOW
-    )
+    window_end = datetime.combine(now.date(), RISK_ALERT_TIME, tzinfo=now.tzinfo) + SEND_WINDOW
     return RISK_ALERT_TIME <= now.time() < window_end.time()
 
 
@@ -117,9 +113,7 @@ async def send_risk_alerts(bot: Bot, session_pool: async_sessionmaker[AsyncSessi
         return sent
 
 
-async def risk_alert_loop(
-    bot: Bot, session_pool: async_sessionmaker[AsyncSession]
-) -> None:
+async def risk_alert_loop(bot: Bot, session_pool: async_sessionmaker[AsyncSession]) -> None:
     log.info("risk alert loop started")
     while True:
         try:

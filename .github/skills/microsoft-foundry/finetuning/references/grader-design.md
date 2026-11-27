@@ -19,23 +19,23 @@ Binary pass/fail gives sparse reward. Decompose into 2–4 scored dimensions:
 def grade(sample, item):
     output_text = sample.get("output_text", "") or ""
     expected = item.get("expected_answer", "")
-    
+
     score = 0.0
-    
+
     # Core correctness (highest weight)
     if correct_action(output_text, expected):
         score += 0.4
-    
+
     # Precision (exact amounts, specific values)
     score += 0.3 * precision_score(output_text, expected)
-    
+
     # Reasoning quality (cited correct rules/facts)
     score += 0.2 * reasoning_score(output_text, expected)
-    
+
     # Process quality (used the right tools)
     if used_correct_tools(sample.get("output_tools", [])):
         score += 0.1
-    
+
     return round(min(score, 1.0), 3)
 ```
 

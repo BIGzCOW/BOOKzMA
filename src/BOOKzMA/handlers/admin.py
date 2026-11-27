@@ -117,9 +117,7 @@ async def on_freeze_gift_habit(
         await callback.message.answer(texts.FREEZE_GIFT_ASK_AMOUNT)
 
 
-@router.message(
-    FreezeGift.waiting_for_amount, F.text, flags={"book_form_input": True}
-)
+@router.message(FreezeGift.waiting_for_amount, F.text, flags={"book_form_input": True})
 async def on_freeze_gift_amount(
     message: Message, session: AsyncSession, state: FSMContext, settings: Settings
 ) -> None:
@@ -137,9 +135,7 @@ async def on_freeze_gift_amount(
         await state.clear()
         await message.answer(texts.INVALID_ACTION)
         return
-    preview = await freeze_gifts.create_preview(
-        session, message.from_user.id, habit, amount
-    )
+    preview = await freeze_gifts.create_preview(session, message.from_user.id, habit, amount)
     await session.commit()
     await state.clear()
     await message.answer(
@@ -195,8 +191,7 @@ async def on_freeze_gift_confirm(
         await show(
             callback,
             texts.freeze_gift_result(
-                result.habit, result.recipients, result.units, result.capped
-                , result.skipped
+                result.habit, result.recipients, result.units, result.capped, result.skipped
             ),
             keyboards.admin_kb(),
         )
@@ -215,9 +210,7 @@ async def on_freeze_gift_cancel(
     if match is None or match[1] != "cancel" or int(match[2]) > 2_147_483_647:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
         return
-    cancelled = await freeze_gifts.cancel(
-        session, callback.from_user.id, int(match[2])
-    )
+    cancelled = await freeze_gifts.cancel(session, callback.from_user.id, int(match[2]))
     await session.commit()
     await callback.answer()
     await show(
@@ -311,9 +304,7 @@ def _valid_broadcast_url(value: str) -> bool:
         return False
 
 
-@router.message(
-    NewBroadcast.waiting_for_link, F.text, flags={"book_form_input": True}
-)
+@router.message(NewBroadcast.waiting_for_link, F.text, flags={"book_form_input": True})
 async def on_broadcast_link(
     message: Message, session: AsyncSession, state: FSMContext, settings: Settings
 ) -> None:
@@ -461,9 +452,7 @@ def _backup_name(settings: Settings, index: int | None) -> str | None:
 
 
 @router.callback_query(F.data == "admin:backup")
-async def on_backup_menu(
-    callback: CallbackQuery, state: FSMContext, settings: Settings
-) -> None:
+async def on_backup_menu(callback: CallbackQuery, state: FSMContext, settings: Settings) -> None:
     if not _authorize(callback.from_user.id, settings, "backup_menu"):
         await callback.answer("دسترسی نداری.", show_alert=True)
         return
@@ -492,9 +481,7 @@ async def on_backup_now(callback: CallbackQuery, settings: Settings) -> None:
             await callback.message.answer(texts.BACKUP_FAILED)
         return
     if isinstance(callback.message, Message):
-        await callback.message.answer(
-            texts.backup_done(info.name, info.size_bytes, str(info.path))
-        )
+        await callback.message.answer(texts.backup_done(info.name, info.size_bytes, str(info.path)))
 
 
 @router.callback_query(F.data == "admin:backup_restore")
@@ -532,9 +519,7 @@ async def on_restore_ask(callback: CallbackQuery, settings: Settings) -> None:
 
 
 @router.callback_query(F.data.startswith("admin:restore_ready:"))
-async def on_restore_ready(
-    callback: CallbackQuery, state: FSMContext, settings: Settings
-) -> None:
+async def on_restore_ready(callback: CallbackQuery, state: FSMContext, settings: Settings) -> None:
     if not _authorize(callback.from_user.id, settings, "restore_ready"):
         await callback.answer("دسترسی نداری.", show_alert=True)
         return
@@ -552,15 +537,9 @@ async def on_restore_ready(
         )
 
 
-@router.message(
-    BackupRestore.waiting_for_confirm, F.text, flags={"book_form_input": True}
-)
-async def on_restore_confirm(
-    message: Message, state: FSMContext, settings: Settings
-) -> None:
-    if not message.from_user or not _authorize(
-        message.from_user.id, settings, "restore_confirm"
-    ):
+@router.message(BackupRestore.waiting_for_confirm, F.text, flags={"book_form_input": True})
+async def on_restore_confirm(message: Message, state: FSMContext, settings: Settings) -> None:
+    if not message.from_user or not _authorize(message.from_user.id, settings, "restore_confirm"):
         await state.clear()
         return
     if (message.text or "").strip() != texts.RESTORE_WORD:

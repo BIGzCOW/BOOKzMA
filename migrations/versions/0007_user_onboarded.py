@@ -6,6 +6,7 @@ onboarding flow twice after deploy; the KPI is meaningful from then on.
 Revision ID: 0007
 Revises: 0006
 """
+
 import sqlalchemy as sa
 from alembic import op
 

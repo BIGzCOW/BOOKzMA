@@ -83,9 +83,7 @@ def _patch_clock_and_rows(monkeypatch, rows, entries):
     monkeypatch.setattr(mesbak_scheduler.reminders_repo, "record_message", record_message)
     monkeypatch.setattr(mesbak_scheduler, "request_cleanup", request_cleanup)
     monkeypatch.setattr(mesbak_scheduler.mesbak_repo, "due_reminders", due_reminders)
-    monkeypatch.setattr(
-        mesbak_scheduler.mesbak_repo, "entries_for_day", entries_for_day
-    )
+    monkeypatch.setattr(mesbak_scheduler.mesbak_repo, "entries_for_day", entries_for_day)
     monkeypatch.setattr(mesbak_scheduler.asyncio, "sleep", no_sleep)
 
 
@@ -174,9 +172,7 @@ def test_scheduler_persists_retry_after(monkeypatch):
         _patch_clock_and_rows(monkeypatch, [row], set())
 
         async def send_message(*_args, **_kwargs):
-            raise TelegramRetryAfter(
-                SendMessage(chat_id=77, text="reminder"), "retry", 15
-            )
+            raise TelegramRetryAfter(SendMessage(chat_id=77, text="reminder"), "retry", 15)
 
         session = Session()
         await mesbak_scheduler.send_due_mesbak_reminders(
@@ -205,9 +201,7 @@ def test_scheduler_removes_reminders_after_user_blocks_bot(monkeypatch):
                 SendMessage(chat_id=77, text="reminder"), "bot was blocked"
             )
 
-        monkeypatch.setattr(
-            mesbak_scheduler.mesbak_repo, "delete_reminders", delete_reminders
-        )
+        monkeypatch.setattr(mesbak_scheduler.mesbak_repo, "delete_reminders", delete_reminders)
         session = Session()
         await mesbak_scheduler.send_due_mesbak_reminders(
             SimpleNamespace(send_message=send_message), SessionPool(session)

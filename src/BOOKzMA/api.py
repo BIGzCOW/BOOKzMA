@@ -19,6 +19,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from aiogram.client.session.base import BaseSession
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import select
+from io import StringIO
+import csv
 
 from BOOKzMA.bot import start_bot
 from BOOKzMA.config import Settings
@@ -29,6 +32,8 @@ from BOOKzMA.services.streak import longest_streak, weekly_summary
 from BOOKzMA.services.streak_freezes import on_read
 from BOOKzMA.services.meilisearch import MeilisearchClient
 from BOOKzMA.utils import local_today
+from BOOKzMA.logging_config import setup_logging
+from BOOKzMA.db.models import ReadingLog, Reminder, StreakFreeze, Badge, MesbakEntry, PageLog
 
 log = logging.getLogger(__name__)
 ACCESS_TOKEN_TTL = timedelta(hours=1)
@@ -197,6 +202,8 @@ def _upgrade_database(database_url: str) -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     settings: Settings = app.state.settings
+    log_level = settings.log_level if hasattr(settings, "log_level") else "INFO"
+    setup_logging(log_level)
     if app.state.run_migrations:
         await asyncio.to_thread(_upgrade_database, settings.database_url)
         log.info("database migrations are up to date")
@@ -225,6 +232,7 @@ async def _lifespan(app: FastAPI):
             )
         yield
     finally:
+        log.info("shutting down application")
         for task in tasks:
             task.cancel()
         if tasks:
@@ -234,6 +242,7 @@ async def _lifespan(app: FastAPI):
         if catalog_search_client is not None:
             await catalog_search_client.aclose()
         await engine.dispose()
+        log.info("application shutdown complete")
 
 
 def create_app(
@@ -248,9 +257,7 @@ def create_app(
     app.state.run_migrations = run_migrations
     app.state.bot_session = bot_session
     origins = [
-        origin.strip()
-        for origin in app.state.settings.web_origins.split(",")
-        if origin.strip()
+        origin.strip() for origin in app.state.settings.web_origins.split(",") if origin.strip()
     ]
     if origins:
         app.add_middleware(
@@ -263,6 +270,18 @@ def create_app(
     @app.get("/health", tags=["system"])
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/health/ready", tags=["system"])
+    async def health_ready(request: Request) -> dict[str, str | bool]:
+        pool: async_sessionmaker[AsyncSession] = request.app.state.session_pool
+        db_ok = False
+        try:
+            async with pool() as session:
+                await session.execute("SELECT 1")
+            db_ok = True
+        except Exception:
+            pass
+        return {"status": "ok", "database": db_ok}
 
     @app.post("/api/v1/auth/telegram", response_model=TokenResponse, tags=["auth"])
     async def telegram_auth(payload: TelegramAuthRequest) -> TokenResponse:
@@ -388,5 +407,104 @@ def create_app(
             raise HTTPException(status_code=404, detail="Reminder not found")
         await session.commit()
 
-    return app
+    @app.get("/api/v1/me/export", tags=["account"])
+    async def export_my_data(
+        identity: Identity = Depends(require_identity),
+        session: AsyncSession = Depends(get_session),
+    ):
+        from fastapi.responses import StreamingResponse
 
+        user = await _load_user(session, identity)
+
+        # Collect all user data
+        readings_data = await session.execute(
+            select(ReadingLog).where(ReadingLog.user_id == user.id).order_by(ReadingLog.read_date)
+        )
+        reminders_data = await session.execute(
+            select(Reminder).where(Reminder.user_id == user.id).order_by(Reminder.remind_at)
+        )
+        freezes_data = await session.execute(
+            select(StreakFreeze)
+            .where(StreakFreeze.user_id == user.id)
+            .order_by(StreakFreeze.freeze_date)
+        )
+        badges_data = await session.execute(
+            select(Badge).where(Badge.user_id == user.id).order_by(Badge.earned_at)
+        )
+        mesbak_data = await session.execute(
+            select(MesbakEntry)
+            .where(MesbakEntry.user_id == user.id)
+            .order_by(MesbakEntry.created_at)
+        )
+        pagelog_data = await session.execute(
+            select(PageLog).where(PageLog.user_id == user.id).order_by(PageLog.created_at)
+        )
+
+        # Create CSV output
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # User info
+        writer.writerow(["# User Information"])
+        writer.writerow(["Field", "Value"])
+        writer.writerow(["id", user.id])
+        writer.writerow(["username", user.username or ""])
+        writer.writerow(["timezone", user.timezone])
+        writer.writerow(["created_at", user.created_at.isoformat() if user.created_at else ""])
+        writer.writerow([])
+
+        # Readings
+        writer.writerow(["# Reading Log"])
+        writer.writerow(["id", "read_date", "created_at"])
+        for r in readings_data.scalars():
+            created_at_str = r.created_at.isoformat() if r.created_at else ""
+            writer.writerow([r.id, r.read_date.isoformat(), created_at_str])
+        writer.writerow([])
+
+        # Reminders
+        writer.writerow(["# Reminders"])
+        writer.writerow(["id", "remind_at", "created_at", "deleted_at"])
+        for r in reminders_data.scalars():
+            created_at_str = r.created_at.isoformat() if r.created_at else ""
+            deleted_at_str = r.deleted_at.isoformat() if r.deleted_at else ""
+            writer.writerow([r.id, r.remind_at.isoformat(), created_at_str, deleted_at_str])
+        writer.writerow([])
+
+        # Streak Freezes
+        writer.writerow(["# Streak Freezes"])
+        writer.writerow(["id", "freeze_date", "source", "created_at"])
+        for f in freezes_data.scalars():
+            created_at_str = f.created_at.isoformat() if f.created_at else ""
+            writer.writerow([f.id, f.freeze_date.isoformat(), f.source, created_at_str])
+        writer.writerow([])
+
+        # Badges
+        writer.writerow(["# Badges"])
+        writer.writerow(["id", "badge_type", "earned_at"])
+        for b in badges_data.scalars():
+            writer.writerow([b.id, b.badge_type, b.earned_at.isoformat() if b.earned_at else ""])
+        writer.writerow([])
+
+        # Mesbak Entries
+        writer.writerow(["# Mesbak Entries"])
+        writer.writerow(["id", "text", "created_at"])
+        for m in mesbak_data.scalars():
+            writer.writerow([m.id, m.text, m.created_at.isoformat() if m.created_at else ""])
+        writer.writerow([])
+
+        # Page Logs
+        writer.writerow(["# Page Logs"])
+        writer.writerow(["id", "book_id", "page", "created_at"])
+        for p in pagelog_data.scalars():
+            created_at_str = p.created_at.isoformat() if p.created_at else ""
+            writer.writerow([p.id, p.book_id, p.page, created_at_str])
+
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=bookzma_export_{user.id}.csv"},
+        )
+
+    return app

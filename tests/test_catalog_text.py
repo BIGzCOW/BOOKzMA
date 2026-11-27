@@ -42,9 +42,7 @@ def test_catalog_document_hash_is_stable_and_tracks_display_changes():
     assert search_document_hash({"title": "کتاب", "id": 4}) == search_document_hash(
         {"id": 4, "title": "کتاب"}
     )
-    assert search_document_hash({"title": "کتاب"}) != search_document_hash(
-        {"title": "کتاب تازه"}
-    )
+    assert search_document_hash({"title": "کتاب"}) != search_document_hash({"title": "کتاب تازه"})
 
 
 def test_catalog_search_fixture_has_at_least_50_valid_scenarios():
@@ -55,8 +53,7 @@ def test_catalog_search_fixture_has_at_least_50_valid_scenarios():
 
     assert len(scenarios) >= 50
     assert all(
-        scenario["expected_ids"]
-        and set(scenario["expected_ids"]).issubset(document_ids)
+        scenario["expected_ids"] and set(scenario["expected_ids"]).issubset(document_ids)
         for scenario in scenarios
     )
     queries = {scenario["query"] for scenario in scenarios}

@@ -121,9 +121,7 @@ def test_challenge_duration_and_consecutive_progress():
     with pytest.raises(ValueError):
         challenge_end_date(TODAY, 14)
     assert (
-        challenge_progress(
-            {TODAY, TODAY + timedelta(days=1)}, TODAY, TODAY + timedelta(days=2)
-        )
+        challenge_progress({TODAY, TODAY + timedelta(days=1)}, TODAY, TODAY + timedelta(days=2))
         == 2
     )
     assert challenge_progress({TODAY + timedelta(days=1)}, TODAY, TODAY + timedelta(days=2)) == 0
@@ -133,12 +131,12 @@ def test_challenge_fails_after_a_closed_day_is_missed_but_not_during_today():
     yesterday = TODAY - timedelta(days=1)
     assert not challenge_failed({TODAY}, TODAY, TODAY + timedelta(days=6), TODAY)
     assert challenge_failed(
-        {TODAY, TODAY + timedelta(days=2)}, TODAY, TODAY + timedelta(days=6),
+        {TODAY, TODAY + timedelta(days=2)},
+        TODAY,
+        TODAY + timedelta(days=6),
         TODAY + timedelta(days=3),
     )
-    assert not challenge_failed(
-        {TODAY, yesterday}, yesterday, yesterday + timedelta(days=6), TODAY
-    )
+    assert not challenge_failed({TODAY, yesterday}, yesterday, yesterday + timedelta(days=6), TODAY)
 
 
 def test_mesbak_invite_token_is_validated_and_hashed():
@@ -220,18 +218,12 @@ def test_mesbak_buddy_nudge_summary_matches_library_buddy_style():
 
 
 def test_mesbak_sections_live_in_reply_menu_and_today_inline_is_contextual():
-    main_labels = [
-        button.text for row in keyboards.mesbak_menu_kb().keyboard for button in row
-    ]
+    main_labels = [button.text for row in keyboards.mesbak_menu_kb().keyboard for button in row]
     report_labels = [
-        button.text
-        for row in keyboards.mesbak_reports_menu_kb().keyboard
-        for button in row
+        button.text for row in keyboards.mesbak_reports_menu_kb().keyboard for button in row
     ]
     settings_labels = [
-        button.text
-        for row in keyboards.mesbak_settings_menu_kb().keyboard
-        for button in row
+        button.text for row in keyboards.mesbak_settings_menu_kb().keyboard for button in row
     ]
     today_callbacks = {
         button.callback_data
@@ -248,9 +240,7 @@ def test_mesbak_sections_live_in_reply_menu_and_today_inline_is_contextual():
         "🏆 لیگ مسباک",
     } <= set(main_labels)
     assert {"📊 گزارش ۷ روز", "📅 گزارش ۳۰ روز"} <= set(report_labels)
-    assert {"🎯 هدف روزانه", "⏰ زمان‌های یادآوری", "🚪 خروج از مسباک"} <= set(
-        settings_labels
-    )
+    assert {"🎯 هدف روزانه", "⏰ زمان‌های یادآوری", "🚪 خروج از مسباک"} <= set(settings_labels)
     assert today_callbacks == {"mesbak:done:20261107:1", "mesbak:done:20261107:2"}
 
 
@@ -289,13 +279,12 @@ def test_nonexistent_dst_wall_time_is_not_sent_late():
 
 
 def test_ambiguous_dst_reminder_is_suppressed_after_first_fold_send():
-    first_fold = datetime(
-        2026, 11, 1, 1, 30, tzinfo=ZoneInfo("America/New_York"), fold=0
-    )
+    first_fold = datetime(2026, 11, 1, 1, 30, tzinfo=ZoneInfo("America/New_York"), fold=0)
     second_fold = first_fold.replace(fold=1)
 
     assert reminder_due(first_fold, time(1, 30), None, 0, None)
     assert not reminder_due(second_fold, time(1, 30), first_fold.date(), 1, None)
+
 
 def test_mesbak_buddy_nudge_all_targets_only_incomplete_buddies(monkeypatch):
     import asyncio
@@ -345,9 +334,7 @@ def test_mesbak_buddy_nudge_all_targets_only_incomplete_buddies(monkeypatch):
         fake_bot = FakeBot()
         monkeypatch.setattr(mesbak_social, "_active_user", active_user)
         monkeypatch.setattr(mesbak_social.mesbak_repo, "buddy_users", buddy_users)
-        monkeypatch.setattr(
-            mesbak_social.mesbak_repo, "users_completed_on_days", completed_on_days
-        )
+        monkeypatch.setattr(mesbak_social.mesbak_repo, "users_completed_on_days", completed_on_days)
         monkeypatch.setattr(mesbak_social.mesbak_repo, "claim_buddy_nudge", claim)
 
         async def commit():
@@ -363,9 +350,7 @@ def test_mesbak_buddy_nudge_all_targets_only_incomplete_buddies(monkeypatch):
                 async def answer(self, text, **kwargs):
                     sink.append(text)
 
-            return FakeMessage(
-                message_id=1, date=datetime.now(tz=timezone.utc), chat=chat
-            )
+            return FakeMessage(message_id=1, date=datetime.now(tz=timezone.utc), chat=chat)
 
         session = SimpleNamespace(commit=commit)
         callback = SimpleNamespace(

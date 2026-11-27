@@ -23,9 +23,7 @@ INVITE_PREFIX = "mesbakbuddy_"
 
 
 async def _active_user(session: AsyncSession, tg_user) -> tuple[User, date] | None:
-    user = await users.get_or_create(
-        session, tg_user.id, tg_user.username, tg_user.full_name
-    )
+    user = await users.get_or_create(session, tg_user.id, tg_user.username, tg_user.full_name)
     today = local_today(user.timezone)
     profile = await mesbak_repo.get_profile(session, user.id, today)
     if profile is None or not profile.enabled:
@@ -73,9 +71,7 @@ async def on_challenge_start(callback: CallbackQuery, session: AsyncSession) -> 
         callback.from_user.full_name,
     )
     today = local_today(user.timezone)
-    challenge, status = await mesbak_repo.start_challenge(
-        session, user.id, int(match[1]), today
-    )
+    challenge, status = await mesbak_repo.start_challenge(session, user.id, int(match[1]), today)
     await session.commit()
     if status == "inactive":
         await callback.answer(texts.mesbak_INACTIVE, show_alert=True)
@@ -209,9 +205,7 @@ async def on_random_buddy_join(callback: CallbackQuery, session: AsyncSession, b
             log.info("anonymous Mesbak match notification to %s failed", partner_id)
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer(
-            texts.MESBAK_RANDOM_MATCHED_SELF.format(name=partner_name)
-        )
+        await callback.message.answer(texts.MESBAK_RANDOM_MATCHED_SELF.format(name=partner_name))
     await _render_buddy_list(callback, session, user.id)
 
 
@@ -268,9 +262,7 @@ async def on_buddy_open(callback: CallbackQuery, session: AsyncSession) -> None:
     if await _active_user(session, callback.from_user) is None:
         await callback.answer(texts.mesbak_INACTIVE, show_alert=True)
         return
-    found = await mesbak_repo.buddy_pair_for_user(
-        session, callback.from_user.id, int(match[1])
-    )
+    found = await mesbak_repo.buddy_pair_for_user(session, callback.from_user.id, int(match[1]))
     if found is None:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
         return
@@ -289,9 +281,7 @@ async def on_buddy_open(callback: CallbackQuery, session: AsyncSession) -> None:
 
 
 @router.callback_query(F.data == "mesbak:buddy:nudge:all")
-async def on_buddy_nudge_all(
-    callback: CallbackQuery, session: AsyncSession, bot: Bot
-) -> None:
+async def on_buddy_nudge_all(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     active = await _active_user(session, callback.from_user)
     if active is None:
         await callback.answer(texts.mesbak_INACTIVE, show_alert=True)
@@ -325,9 +315,7 @@ async def on_buddy_nudge_all(
     failed = unavailable
     for target_id in ready:
         try:
-            await bot.send_message(
-                target_id, texts.mesbak_buddy_nudge(user.display_name)
-            )
+            await bot.send_message(target_id, texts.mesbak_buddy_nudge(user.display_name))
             sent += 1
         except TelegramAPIError:
             log.info("mesbak bulk nudge to %s failed", target_id)
@@ -356,9 +344,7 @@ async def on_dismiss_buddy_nudge(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("mesbak:buddy:nudge:"))
-async def on_buddy_nudge(
-    callback: CallbackQuery, session: AsyncSession, bot: Bot
-) -> None:
+async def on_buddy_nudge(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     match = re.fullmatch(r"mesbak:buddy:nudge:(\d{1,10})", callback.data or "")
     if match is None:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
@@ -379,9 +365,7 @@ async def on_buddy_nudge(
         await callback.answer("این رفاقت فعال نیست.", show_alert=True)
         return
     try:
-        await bot.send_message(
-            target_id, texts.mesbak_buddy_nudge(user.display_name)
-        )
+        await bot.send_message(target_id, texts.mesbak_buddy_nudge(user.display_name))
     except TelegramForbiddenError:
         await callback.answer("ارسال انجام نشد؛ رفیقت دسترسی ربات را بسته.", show_alert=True)
         return
@@ -393,9 +377,7 @@ async def on_buddy_nudge(
 
 
 @router.callback_query(F.data.startswith("mesbak:buddy:end:"))
-async def on_buddy_end(
-    callback: CallbackQuery, session: AsyncSession, bot: Bot
-) -> None:
+async def on_buddy_end(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     match = re.fullmatch(r"mesbak:buddy:end:(\d{1,10})", callback.data or "")
     if match is None:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)

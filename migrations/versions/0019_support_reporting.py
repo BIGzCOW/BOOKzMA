@@ -37,9 +37,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_support_tickets_user_status", "support_tickets", ["user_id", "status"]
-    )
+    op.create_index("ix_support_tickets_user_status", "support_tickets", ["user_id", "status"])
     op.create_table(
         "support_events",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -49,9 +47,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.CheckConstraint(
-            "kind IN ('user_message', 'admin_reply')", name="ck_support_event_kind"
-        ),
+        sa.CheckConstraint("kind IN ('user_message', 'admin_reply')", name="ck_support_event_kind"),
         sa.ForeignKeyConstraint(["ticket_id"], ["support_tickets.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )

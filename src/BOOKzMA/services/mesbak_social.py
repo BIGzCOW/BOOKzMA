@@ -31,9 +31,7 @@ def challenge_progress(completed_days: set[date], start: date, today: date) -> i
     return count
 
 
-def challenge_failed(
-    completed_days: set[date], start: date, end: date, today: date
-) -> bool:
+def challenge_failed(completed_days: set[date], start: date, end: date, today: date) -> bool:
     if today > end:
         return True
     last_closed_day = min(today - timedelta(days=1), end)

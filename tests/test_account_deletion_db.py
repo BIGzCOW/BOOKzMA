@@ -46,9 +46,7 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                 reading_reminder = Reminder(user_id=user_id, remind_at=time(8, 0))
                 session.add(reading_reminder)
                 session.add(MesbakProfile(user_id=user_id, enabled=True, daily_goal=1))
-                mesbak_reminder = MesbakReminder(
-                    user_id=user_id, slot=1, remind_at=time(6, 30)
-                )
+                mesbak_reminder = MesbakReminder(user_id=user_id, slot=1, remind_at=time(6, 30))
                 session.add(mesbak_reminder)
                 await session.flush()
                 session.add_all(
@@ -119,11 +117,14 @@ def test_delete_account_cascades_everything_and_is_idempotent():
                 assert await _count(session, SupportTicket, ticket_id) == 0
                 assert await _count(session, SupportEvent, ticket_id) == 0
                 assert await _count(session, SupportBlock, user_id) == 0
-                assert await session.scalar(
-                    select(func.count()).select_from(PageLog).where(
-                        PageLog.user_book_id == book_id
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(PageLog)
+                        .where(PageLog.user_book_id == book_id)
                     )
-                ) == 0
+                    == 0
+                )
                 reason = await session.scalar(
                     select(DeletedAccount.reason).where(DeletedAccount.user_id == user_id)
                 )
@@ -223,8 +224,5 @@ async def _count(session, model, user_id: int) -> int:
     else:
         column = model.user_id
     return (
-        await session.scalar(
-            select(func.count()).select_from(model).where(column == user_id)
-        )
-        or 0
+        await session.scalar(select(func.count()).select_from(model).where(column == user_id)) or 0
     )

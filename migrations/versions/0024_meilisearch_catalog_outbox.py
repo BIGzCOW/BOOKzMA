@@ -31,9 +31,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.CheckConstraint(
-            "operation IN ('upsert', 'delete')", name="ck_book_catalog_outbox_op"
-        ),
+        sa.CheckConstraint("operation IN ('upsert', 'delete')", name="ck_book_catalog_outbox_op"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("message_id", name="uq_book_catalog_outbox_message"),
     )
@@ -45,9 +43,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    pending = op.get_bind().execute(
-        sa.text("SELECT EXISTS (SELECT 1 FROM book_catalog_index_outbox)")
-    ).scalar_one()
+    pending = (
+        op.get_bind()
+        .execute(sa.text("SELECT EXISTS (SELECT 1 FROM book_catalog_index_outbox)"))
+        .scalar_one()
+    )
     if pending:
         raise RuntimeError("cannot downgrade while catalog index operations are pending")
 

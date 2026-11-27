@@ -142,4 +142,3 @@ az cognitiveservices account deployment create --name <resource> --resource-grou
 **Decision:** Available < 10% → Different region; 10-50% → Delete/reduce; > 50% → Delete one deployment
 
 ---
-

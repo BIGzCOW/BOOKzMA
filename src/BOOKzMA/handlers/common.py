@@ -15,9 +15,7 @@ from BOOKzMA.services.streak import displayed_streak, longest_streak, week_strip
 from BOOKzMA.utils import local_today
 
 
-async def show(
-    event: Message | CallbackQuery, text: str, kb: InlineKeyboardMarkup | None
-) -> None:
+async def show(event: Message | CallbackQuery, text: str, kb: InlineKeyboardMarkup | None) -> None:
     """دکمه‌ها پیام قبلی رو ویرایش می‌کنن، پیام جدید رو می‌فرستیم"""
     if isinstance(event, Message):
         await event.answer(text, reply_markup=kb)
@@ -37,17 +35,13 @@ async def render_home(event: Message | CallbackQuery, session: AsyncSession, tg:
     mesbak_streak = None
     mesbak_freeze_balance = 0
     if mesbak_profile is not None and mesbak_profile.enabled:
-        mesbak_freeze_days = await streak_freezes.used_days(
-            session, user.id, habit="mesbak"
-        )
+        mesbak_freeze_days = await streak_freezes.used_days(session, user.id, habit="mesbak")
         mesbak_streak = current_streak(
             completed_days(await mesbak_repo.daily_records(session, user.id)),
             today,
             mesbak_freeze_days,
         )
-        mesbak_freeze_balance = await streak_freezes.balance(
-            session, user.id, habit="mesbak"
-        )
+        mesbak_freeze_balance = await streak_freezes.balance(session, user.id, habit="mesbak")
     await session.commit()
     days = set(await readings.get_days(session, user.id))
     frozen_days = set(await streak_freezes.used_days(session, user.id))
@@ -62,7 +56,7 @@ async def render_home(event: Message | CallbackQuery, session: AsyncSession, tg:
         read_today,
         freeze_balance,
         mesbak_streak,
-            mesbak_freeze_balance,
+        mesbak_freeze_balance,
     )
     await show(
         event,
@@ -71,9 +65,7 @@ async def render_home(event: Message | CallbackQuery, session: AsyncSession, tg:
     )
 
 
-async def offer_buddy_nudge(
-    message: Message | None, session: AsyncSession, user: User
-) -> None:
+async def offer_buddy_nudge(message: Message | None, session: AsyncSession, user: User) -> None:
     if message is None:
         return
     buddies = await buddy_repo.active_buddy_users(session, user.id)

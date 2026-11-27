@@ -55,7 +55,7 @@ def _clamp_score(v, default=0):
 
 class HelpOnErrorParser(argparse.ArgumentParser):
     """ArgumentParser that prints full help when arguments are invalid.
-    
+
     Standard ArgumentParser only prints a one-line usage summary on error,
     which isn't helpful for first-time users. This prints the full --help.
     """
@@ -67,7 +67,7 @@ class HelpOnErrorParser(argparse.ArgumentParser):
 
 def _make_token_provider():
     """Create an auto-refreshing AAD token provider for long-running scripts.
-    
+
     Returns a callable that the OpenAI SDK calls before each request to get
     a fresh token. Tokens are cached and refreshed ~5 min before expiry.
     """

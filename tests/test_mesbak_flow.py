@@ -50,9 +50,9 @@ def test_direct_mesbak_entry_marks_new_user_as_started(monkeypatch):
         monkeypatch.setattr("BOOKzMA.handlers.mesbak.show", show)
 
         session = Session()
-        await render_mesbak(SimpleNamespace(), session, SimpleNamespace(
-            id=777, username="user", full_name="User"
-        ))
+        await render_mesbak(
+            SimpleNamespace(), session, SimpleNamespace(id=777, username="user", full_name="User")
+        )
 
         assert started == [777]
         assert shown
@@ -211,9 +211,7 @@ def test_mesbak_goal_completion_offers_nudge_to_eligible_buddy(monkeypatch):
         )
         pair = SimpleNamespace(last_nudge_on=None)
         buddy = SimpleNamespace(id=888, timezone="Asia/Tehran")
-        result = SimpleNamespace(
-            status="ok", day_complete=True, completed_count=1, daily_goal=1
-        )
+        result = SimpleNamespace(status="ok", day_complete=True, completed_count=1, daily_goal=1)
 
         async def fake_user_from_callback(_callback, _session):
             return SimpleNamespace(id=777), today, 777
@@ -259,9 +257,7 @@ def test_mesbak_goal_completion_offers_nudge_to_eligible_buddy(monkeypatch):
         monkeypatch.setattr(mesbak.mesbak_repo, "completed_day_set", fake_completed_days)
         monkeypatch.setattr(mesbak.mesbak_repo, "award_streak_badges", fake_award_badges)
         monkeypatch.setattr(mesbak.mesbak_repo, "buddy_users", fake_buddies)
-        monkeypatch.setattr(
-            mesbak.mesbak_repo, "users_completed_on_days", fake_completed_buddies
-        )
+        monkeypatch.setattr(mesbak.mesbak_repo, "users_completed_on_days", fake_completed_buddies)
         monkeypatch.setattr(mesbak, "render_mesbak", fake_render)
         monkeypatch.setattr(mesbak, "request_cleanup", fake_cleanup)
         monkeypatch.setattr(mesbak.mesbak_freezes, "on_completed_day", fake_freeze_change)

@@ -102,9 +102,7 @@ async def set_total_pages(
     return "ok", BookProgress(book, int(current))
 
 
-async def visible_count(
-    session: AsyncSession, user_id: int, *, archived: bool = False
-) -> int:
+async def visible_count(session: AsyncSession, user_id: int, *, archived: bool = False) -> int:
     status_filter = UserBook.status == "archived" if archived else UserBook.status != "archived"
     return (
         await session.scalar(
@@ -135,12 +133,8 @@ async def shelf_summary(
                 func.count(UserBook.id).filter(UserBook.status == "archived"),
                 func.count(UserBook.id).filter(UserBook.status == "finished"),
                 func.count(UserBook.id).filter(UserBook.status == "planned"),
-                func.count(UserBook.id).filter(
-                    and_(UserBook.status == "reading", pages_read > 0)
-                ),
-                func.count(UserBook.id).filter(
-                    and_(UserBook.status == "reading", pages_read == 0)
-                ),
+                func.count(UserBook.id).filter(and_(UserBook.status == "reading", pages_read > 0)),
+                func.count(UserBook.id).filter(and_(UserBook.status == "reading", pages_read == 0)),
             )
             .select_from(UserBook)
             .outerjoin(page_totals, page_totals.c.book_id == UserBook.id)
@@ -200,9 +194,7 @@ async def list_visible(
     return [BookProgress(book=book, pages_read=int(read)) for book, read in result.all()]
 
 
-async def get_progress(
-    session: AsyncSession, user_id: int, book_id: int
-) -> BookProgress | None:
+async def get_progress(session: AsyncSession, user_id: int, book_id: int) -> BookProgress | None:
     pages = func.coalesce(func.sum(PageLog.pages_read), 0).label("pages_read")
     row = (
         await session.execute(
@@ -215,9 +207,7 @@ async def get_progress(
     return BookProgress(book=row[0], pages_read=int(row[1])) if row else None
 
 
-async def set_note(
-    session: AsyncSession, user_id: int, book_id: int, note: str | None
-) -> bool:
+async def set_note(session: AsyncSession, user_id: int, book_id: int, note: str | None) -> bool:
     book = await session.scalar(
         select(UserBook)
         .where(UserBook.id == book_id, UserBook.user_id == user_id)
@@ -296,6 +286,7 @@ async def archive(session: AsyncSession, user_id: int, book_id: int) -> bool:
         .values(status="archived", archived_at=datetime.now(timezone.utc))
     )
     return result.rowcount == 1
+
 
 async def restore(session: AsyncSession, user_id: int, book_id: int) -> bool:
     book = await session.scalar(

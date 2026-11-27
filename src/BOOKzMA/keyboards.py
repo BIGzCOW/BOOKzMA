@@ -17,9 +17,7 @@ from BOOKzMA.constants import (
 from BOOKzMA.services.catalog_text import strip_channel_handles
 
 
-def _btn(
-    text: str, data: str, style: ButtonStyle | None = None
-) -> InlineKeyboardButton:
+def _btn(text: str, data: str, style: ButtonStyle | None = None) -> InlineKeyboardButton:
     danger_prefixes = (
         "account_del:go",
         "book:archive",
@@ -82,10 +80,7 @@ def _chunk(items: list, size: int) -> list[list]:
 
 
 def join_kb(missing: list[str]) -> InlineKeyboardMarkup:
-    rows = [
-        [_link_btn(f"عضویت در {ch}", f"https://t.me/{ch.lstrip('@')}")]
-        for ch in missing
-    ]
+    rows = [[_link_btn(f"عضویت در {ch}", f"https://t.me/{ch.lstrip('@')}")] for ch in missing]
     rows.append([_btn("✅ عضو شدم", "check_join")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -241,9 +236,7 @@ def book_note_kb(book_id: int, has_note: bool) -> InlineKeyboardMarkup:
 
 
 def book_note_cancel_kb(book_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[_btn("🔙 انصراف", f"book:note:{book_id}")]]
-    )
+    return InlineKeyboardMarkup(inline_keyboard=[[_btn("🔙 انصراف", f"book:note:{book_id}")]])
 
 
 def catalog_search_cancel_kb() -> InlineKeyboardMarkup:
@@ -439,9 +432,7 @@ def backup_kb() -> InlineKeyboardMarkup:
 
 def backup_list_kb(names: list[str]) -> InlineKeyboardMarkup:
     # ایندکس به ترتیب list_backups (جدیدترین اول) اشاره می‌کند؛ هندلر همین فهرست را دوباره می‌سازد
-    rows = [
-        [_btn(f"♻️ {name}", f"admin:restore_ask:{i}")] for i, name in enumerate(names)
-    ]
+    rows = [[_btn(f"♻️ {name}", f"admin:restore_ask:{i}")] for i, name in enumerate(names)]
     rows.append([_btn("🔙 برگشت", "admin:backup")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -479,8 +470,7 @@ def broadcast_cancel_kb(campaign_id: int) -> InlineKeyboardMarkup:
 
 def mesbak_intro_kb() -> InlineKeyboardMarkup:
     rows = [
-        [_btn(f"شروع با هدف {goal} نوبت در روز", f"mesbak:join:{goal}")]
-        for goal in range(1, 6)
+        [_btn(f"شروع با هدف {goal} نوبت در روز", f"mesbak:join:{goal}")] for goal in range(1, 6)
     ]
     rows.append([_btn("🏠 منوی اصلی", "home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -575,9 +565,7 @@ def mesbak_screen_kb(
         if slot in completed_slots:
             rows.append([_btn(f"✅ نوبت {slot} ثبت شد", "mesbak:open")])
         else:
-            rows.append(
-                [_btn(f"ثبت نوبت {slot}", f"mesbak:done:{today}:{slot}")]
-            )
+            rows.append([_btn(f"ثبت نوبت {slot}", f"mesbak:done:{today}:{slot}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -636,9 +624,7 @@ def mesbak_buddy_invite_kb(share_url: str) -> InlineKeyboardMarkup:
     )
 
 
-def mesbak_buddy_list_kb(
-    rows: list[tuple[int, str]], queued: bool = False
-) -> InlineKeyboardMarkup:
+def mesbak_buddy_list_kb(rows: list[tuple[int, str]], queued: bool = False) -> InlineKeyboardMarkup:
     buttons = [
         _btn(
             f"👤 {(name.replace(chr(10), ' ').replace(chr(13), ' ').strip() or 'کاربر')[:40]}",

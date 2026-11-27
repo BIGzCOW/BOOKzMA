@@ -87,9 +87,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_streak_freeze_habit", "streak_freezes", "habit IN ('reading', 'mesbak')"
     )
-    op.create_check_constraint(
-        "ck_streak_freeze_quantity", "streak_freezes", "quantity > 0"
-    )
+    op.create_check_constraint("ck_streak_freeze_quantity", "streak_freezes", "quantity > 0")
     op.create_check_constraint(
         "ck_streak_freeze_operation",
         "streak_freezes",

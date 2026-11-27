@@ -27,9 +27,7 @@ def test_mesbak_freeze_is_earned_after_seven_real_completed_days(monkeypatch):
             return True
 
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "lock_user", lock_user)
-        monkeypatch.setattr(
-            mesbak_freezes.mesbak, "completed_day_set", completed_days
-        )
+        monkeypatch.setattr(mesbak_freezes.mesbak, "completed_day_set", completed_days)
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "balance", balance)
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "add_event", add_event)
 
@@ -61,9 +59,7 @@ def test_mesbak_freeze_protects_only_one_missed_day_after_real_completion(monkey
             return True
 
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "lock_user", lock_user)
-        monkeypatch.setattr(
-            mesbak_freezes.mesbak, "completed_day_set", completed_days
-        )
+        monkeypatch.setattr(mesbak_freezes.mesbak, "completed_day_set", completed_days)
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "balance", balance)
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "add_event", add_event)
 
@@ -97,9 +93,7 @@ def test_mesbak_freeze_does_not_cover_multiple_missed_days(monkeypatch):
             return True
 
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "lock_user", lock_user)
-        monkeypatch.setattr(
-            mesbak_freezes.mesbak, "completed_day_set", completed_days
-        )
+        monkeypatch.setattr(mesbak_freezes.mesbak, "completed_day_set", completed_days)
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "balance", balance)
         monkeypatch.setattr(mesbak_freezes.streak_freezes, "add_event", add_event)
 

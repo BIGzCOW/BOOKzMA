@@ -23,4 +23,3 @@ For the EXTEND path — when the user has existing Bicep or Terraform templates.
 ## Retry Safety
 
 > ⚠️ If a deployment fails after the capability host step starts, Azure Container Apps leaves a `legionservicelink` service association on the agent subnet that **cannot be removed**. On retry, use a **new subnet or new VNet** — never reuse the same agent subnet.
-

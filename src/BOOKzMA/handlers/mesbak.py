@@ -144,18 +144,14 @@ async def on_menu_reports(message: Message, state: FSMContext) -> None:
 
 @router.message(F.text == "⚙️ تنظیمات مسباک")
 @router.message(F.text == "⏰ زمان‌های یادآوری")
-async def on_menu_settings(
-    message: Message, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_menu_settings(message: Message, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     if message.from_user:
         await render_mesbak_settings(message, session, message.from_user)
 
 
 @router.message(F.text == "🚪 خروج از مسباک")
-async def on_exit_message(
-    message: Message, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_exit_message(message: Message, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     if message.from_user is None:
         return
@@ -214,9 +210,7 @@ async def render_mesbak_settings(
 
 
 @router.callback_query(F.data == "mesbak:settings")
-async def on_mesbak_settings_callback(
-    callback: CallbackQuery, session: AsyncSession
-) -> None:
+async def on_mesbak_settings_callback(callback: CallbackQuery, session: AsyncSession) -> None:
     await callback.answer()
     await render_mesbak_settings(callback, session, callback.from_user)
 
@@ -264,9 +258,7 @@ async def _configure_from_callback(
             today,
         )
         current_schedule = [
-            reminder.remind_at
-            for reminder in existing
-            if reminder.slot <= current_goal
+            reminder.remind_at for reminder in existing if reminder.slot <= current_goal
         ]
         if is_legacy_default_schedule(current_goal, current_schedule):
             selected = {}
@@ -413,9 +405,7 @@ async def on_time_settings(callback: CallbackQuery, session: AsyncSession) -> No
     )
 
 
-async def _save_time(
-    callback: CallbackQuery, session: AsyncSession, slot: int, at: time
-) -> None:
+async def _save_time(callback: CallbackQuery, session: AsyncSession, slot: int, at: time) -> None:
     tg, today, user_id = await _user_from_callback(callback, session)
     profile = await mesbak_repo.get_profile(session, user_id, today)
     if profile is None or not profile.enabled:
@@ -454,9 +444,7 @@ async def on_preset_time(callback: CallbackQuery, session: AsyncSession) -> None
 
 
 @router.callback_query(F.data.startswith("mesbak:customtime:"))
-async def on_custom_time_start(
-    callback: CallbackQuery, state: FSMContext
-) -> None:
+async def on_custom_time_start(callback: CallbackQuery, state: FSMContext) -> None:
     match = re.fullmatch(r"mesbak:customtime:([1-5])", callback.data or "")
     if match is None:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
@@ -515,9 +503,7 @@ async def on_custom_time(message: Message, session: AsyncSession, state: FSMCont
 
 
 @router.callback_query(F.data == "mesbak:exit")
-async def on_exit(
-    callback: CallbackQuery, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_exit(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     await mesbak_repo.set_enabled(session, callback.from_user.id, False)
     await session.commit()

@@ -79,9 +79,7 @@ async def configure(
         profile.enabled = True
 
     for slot, remind_at in enumerate(schedule, 1):
-        statement = insert(MesbakReminder).values(
-            user_id=user_id, slot=slot, remind_at=remind_at
-        )
+        statement = insert(MesbakReminder).values(user_id=user_id, slot=slot, remind_at=remind_at)
         await session.execute(
             statement.on_conflict_do_update(
                 index_elements=[MesbakReminder.user_id, MesbakReminder.slot],
@@ -122,9 +120,7 @@ async def set_enabled(session: AsyncSession, user_id: int, enabled: bool) -> boo
         await session.execute(
             delete(MesbakBuddyInvite).where(MesbakBuddyInvite.inviter_id == user_id)
         )
-        await session.execute(
-            delete(MesbakBuddyQueue).where(MesbakBuddyQueue.user_id == user_id)
-        )
+        await session.execute(delete(MesbakBuddyQueue).where(MesbakBuddyQueue.user_id == user_id))
     return True
 
 
@@ -137,9 +133,7 @@ async def list_reminders(session: AsyncSession, user_id: int) -> list[MesbakRemi
     return list(result)
 
 
-async def set_reminder_time(
-    session: AsyncSession, user_id: int, slot: int, remind_at: time
-) -> str:
+async def set_reminder_time(session: AsyncSession, user_id: int, slot: int, remind_at: time) -> str:
     if not 1 <= slot <= 5:
         raise ValueError("slot must be between 1 and 5")
     profile = await session.scalar(
@@ -158,9 +152,7 @@ async def set_reminder_time(
     )
     if duplicate is not None:
         return "duplicate"
-    statement = insert(MesbakReminder).values(
-        user_id=user_id, slot=slot, remind_at=remind_at
-    )
+    statement = insert(MesbakReminder).values(user_id=user_id, slot=slot, remind_at=remind_at)
     await session.execute(
         statement.on_conflict_do_update(
             index_elements=[MesbakReminder.user_id, MesbakReminder.slot],
@@ -193,27 +185,26 @@ async def record_occurrence(
         .returning(MesbakEntry.slot)
     )
     created = (await session.execute(statement)).first() is not None
-    count = await session.scalar(
-        select(func.count())
-        .select_from(MesbakEntry)
-        .where(MesbakEntry.user_id == user_id, MesbakEntry.day == today)
-    ) or 0
+    count = (
+        await session.scalar(
+            select(func.count())
+            .select_from(MesbakEntry)
+            .where(MesbakEntry.user_id == user_id, MesbakEntry.day == today)
+        )
+        or 0
+    )
     status = "ok" if created else "duplicate"
     return RecordResult(status, count, goal, count >= goal)
 
 
 async def entries_for_day(session: AsyncSession, user_id: int, day: date) -> set[int]:
     result = await session.scalars(
-        select(MesbakEntry.slot).where(
-            MesbakEntry.user_id == user_id, MesbakEntry.day == day
-        )
+        select(MesbakEntry.slot).where(MesbakEntry.user_id == user_id, MesbakEntry.day == day)
     )
     return set(result)
 
 
-async def daily_records(
-    session: AsyncSession, user_id: int
-) -> list[tuple[date, int, int]]:
+async def daily_records(session: AsyncSession, user_id: int) -> list[tuple[date, int, int]]:
     result = await session.execute(
         select(MesbakEntry.day, func.count(), func.max(MesbakEntry.daily_goal))
         .where(MesbakEntry.user_id == user_id)
@@ -266,9 +257,7 @@ async def due_reminders(
     return [(reminder, profile, user) for reminder, profile, user in result.all()]
 
 
-async def mark_reminder_sent(
-    session: AsyncSession, user_id: int, slot: int, day: date
-) -> None:
+async def mark_reminder_sent(session: AsyncSession, user_id: int, slot: int, day: date) -> None:
     reminder = await session.get(MesbakReminder, (user_id, slot))
     if reminder is not None:
         reminder.last_sent_on = day
@@ -291,9 +280,7 @@ async def toggle_league(session: AsyncSession, user_id: int, enabled: bool) -> b
     return True
 
 
-async def league_rows(
-    session: AsyncSession, today: date
-) -> list[tuple[int, str, int]]:
+async def league_rows(session: AsyncSession, today: date) -> list[tuple[int, str, int]]:
     members = await session.execute(
         select(User.id, User.display_name, User.timezone)
         .join(MesbakProfile, MesbakProfile.user_id == User.id)
@@ -468,9 +455,7 @@ async def redeem_buddy_invite(
     if existing is not None:
         await session.delete(invite)
         return "already", inviter_id
-    statement = insert(MesbakBuddyPair).values(
-        user_a=user_a, user_b=user_b, status="active"
-    )
+    statement = insert(MesbakBuddyPair).values(user_a=user_a, user_b=user_b, status="active")
     result = await session.execute(
         statement.on_conflict_do_nothing(
             index_elements=[MesbakBuddyPair.user_a, MesbakBuddyPair.user_b],
@@ -481,9 +466,7 @@ async def redeem_buddy_invite(
     return ("accepted" if result.rowcount else "already"), inviter_id
 
 
-async def join_random_buddy_queue(
-    session: AsyncSession, user_id: int
-) -> tuple[str, int | None]:
+async def join_random_buddy_queue(session: AsyncSession, user_id: int) -> tuple[str, int | None]:
     await session.execute(select(func.pg_advisory_xact_lock(_MESBAK_MATCH_LOCK_ID)))
     profile = await session.scalar(
         select(MesbakProfile)
@@ -531,9 +514,7 @@ async def join_random_buddy_queue(
         )
     )
     await session.execute(
-        delete(MesbakBuddyQueue).where(
-            MesbakBuddyQueue.user_id.in_((user_id, partner_id))
-        )
+        delete(MesbakBuddyQueue).where(MesbakBuddyQueue.user_id.in_((user_id, partner_id)))
     )
     return "matched", partner_id
 
@@ -557,9 +538,7 @@ async def is_random_buddy_queued(session: AsyncSession, user_id: int) -> bool:
     )
 
 
-async def buddy_rows(
-    session: AsyncSession, user_id: int
-) -> list[tuple[int, int, str, str]]:
+async def buddy_rows(session: AsyncSession, user_id: int) -> list[tuple[int, int, str, str]]:
     friend_id = case(
         (MesbakBuddyPair.user_a == user_id, MesbakBuddyPair.user_b),
         else_=MesbakBuddyPair.user_a,
@@ -579,9 +558,7 @@ async def buddy_rows(
     ]
 
 
-async def buddy_users(
-    session: AsyncSession, user_id: int
-) -> list[tuple[MesbakBuddyPair, User]]:
+async def buddy_users(session: AsyncSession, user_id: int) -> list[tuple[MesbakBuddyPair, User]]:
     """همهٔ رفیق‌های فعال با آبجکت User؛ مرتب بر اساس نام نمایشی."""
     friend_id = case(
         (MesbakBuddyPair.user_a == user_id, MesbakBuddyPair.user_b),

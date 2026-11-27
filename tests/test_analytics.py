@@ -49,9 +49,7 @@ def test_catalog_usage_records_atomic_daily_increments_without_event_payloads():
             self.committed = True
 
     session = Session()
-    asyncio.run(
-        record_catalog_usage(session, searches=1, results_shown=4)
-    )
+    asyncio.run(record_catalog_usage(session, searches=1, results_shown=4))
 
     compiled = str(session.statement.compile(dialect=dialect()))
     assert "INSERT INTO catalog_usage_days" in compiled

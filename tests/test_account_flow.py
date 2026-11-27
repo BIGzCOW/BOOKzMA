@@ -208,9 +208,7 @@ def test_middleware_intercepts_deleted_user_before_handlers(monkeypatch):
             return []
 
         monkeypatch.setattr(users, "is_deleted", fake_is_deleted)
-        monkeypatch.setattr(
-            "BOOKzMA.middlewares.membership.missing_channels", no_missing_channels
-        )
+        monkeypatch.setattr("BOOKzMA.middlewares.membership.missing_channels", no_missing_channels)
         monkeypatch.setattr(CallbackQuery, "answer", fake_answer)
         middleware = MembershipMiddleware()
 
@@ -259,9 +257,7 @@ def test_middleware_skips_direct_messages_channel_updates(monkeypatch):
             side_effect=AssertionError("direct messages must skip membership checks")
         )
         monkeypatch.setattr(users, "is_deleted", is_deleted)
-        monkeypatch.setattr(
-            "BOOKzMA.middlewares.membership.missing_channels", membership_check
-        )
+        monkeypatch.setattr("BOOKzMA.middlewares.membership.missing_channels", membership_check)
         answer = AsyncMock()
         monkeypatch.setattr(Message, "answer", answer)
         middleware = MembershipMiddleware()

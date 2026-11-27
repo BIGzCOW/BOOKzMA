@@ -3,6 +3,7 @@
 Revision ID: 0016
 Revises: 0015
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -28,9 +29,7 @@ def upgrade() -> None:
         sa.Column(
             "joined_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["mesbak_profiles.user_id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["user_id"], ["mesbak_profiles.user_id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("user_id"),
     )
     op.create_index(

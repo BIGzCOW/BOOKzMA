@@ -70,9 +70,7 @@ def test_health_and_telegram_auth_endpoints():
     with TestClient(create_app(settings, run_bot=False, run_migrations=False)) as client:
         assert client.get("/health").json() == {"status": "ok"}
         assert client.get("/api/v1/me").status_code == 401
-        response = client.post(
-            "/api/v1/auth/telegram", json={"init_data": _signed_init_data()}
-        )
+        response = client.post("/api/v1/auth/telegram", json={"init_data": _signed_init_data()})
 
     assert response.status_code == 200
     assert response.json()["token_type"] == "bearer"

@@ -20,6 +20,7 @@ from BOOKzMA.services.broadcast import broadcast_loop
 from BOOKzMA.services.risk_alert import risk_alert_loop
 from BOOKzMA.services.book_catalog_sync import book_catalog_sync_loop
 from BOOKzMA.services.meilisearch import MeilisearchClient
+from BOOKzMA.logging_config import setup_logging
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ async def start_bot(
     bot_session: BaseSession | None = None,
     catalog_search_client: MeilisearchClient | None = None,
 ) -> tuple[Bot, list[asyncio.Task]]:
+    setup_logging(settings.log_level if hasattr(settings, "log_level") else "INFO")
     bot = Bot(
         token=settings.bot_token.get_secret_value(),
         session=bot_session,
@@ -85,9 +87,7 @@ async def start_bot(
     try:
         await bot.set_my_commands(COMMANDS)
         for admin_id in settings.admin_ids:
-            await bot.set_my_commands(
-                ADMIN_COMMANDS, scope=BotCommandScopeChat(chat_id=admin_id)
-            )
+            await bot.set_my_commands(ADMIN_COMMANDS, scope=BotCommandScopeChat(chat_id=admin_id))
     except TelegramAPIError as exc:
         log.warning("set_my_commands failed (%s), continuing", type(exc).__name__)
     polling_task = asyncio.create_task(dp.start_polling(bot, handle_signals=False))

@@ -53,9 +53,7 @@ def test_progress_messages_during_window():
     yesterday = TODAY - timedelta(days=1)
     state = ComebackState(broken_streak_days=10, bonus_base_day=day1)
     days2 = {day1, yesterday}
-    _state2, change2 = apply_read(
-        days=days2, frozen=set(), today=yesterday, state=state
-    )
+    _state2, change2 = apply_read(days=days2, frozen=set(), today=yesterday, state=state)
     assert change2.progress_done == 2
 
     days3 = days2 | {TODAY}
@@ -84,9 +82,7 @@ def test_bonus_is_base_for_next_comeback_after_new_break():
     # بعد از زنجیرهٔ پاداش‌دار، غیبت و بازگشت
     later = TODAY + timedelta(days=10)
     returning = days | {later}
-    state2, change = apply_read(
-        days=returning, frozen=set(), today=later, state=state
-    )
+    state2, change = apply_read(days=returning, frozen=set(), today=later, state=state)
     assert change.broken_days == 8  # ۳ روز واقعی + ۵ پاداش
     assert state2.broken_streak_days == 8
 

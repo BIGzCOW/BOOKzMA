@@ -75,7 +75,6 @@ def reminder_due(
     return timedelta(0) <= late <= max_late
 
 
-
 def next_occurrence(completed: Iterable[int], goal: int) -> int | None:
     validate_daily_goal(goal)
     completed_set = set(completed)
@@ -90,9 +89,7 @@ def completed_days(records: Iterable[tuple[date, int, int]]) -> set[date]:
     }
 
 
-def current_streak(
-    days: Iterable[date], today: date, freeze_days: Iterable[date] = ()
-) -> int:
+def current_streak(days: Iterable[date], today: date, freeze_days: Iterable[date] = ()) -> int:
     return compute_streak(days, today, freeze_days)
 
 

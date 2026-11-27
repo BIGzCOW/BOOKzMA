@@ -39,12 +39,8 @@ def test_mesbak_goal_change_idempotency_cohort_and_account_cascade():
                     today,
                 )
                 await session.commit()
-                assert await mesbak.set_reminder_time(
-                    session, user_id, 1, time(13)
-                ) == "duplicate"
-                assert await mesbak.set_reminder_time(
-                    session, user_id, 1, time(7)
-                ) == "ok"
+                assert await mesbak.set_reminder_time(session, user_id, 1, time(13)) == "duplicate"
+                assert await mesbak.set_reminder_time(session, user_id, 1, time(7)) == "ok"
                 await session.commit()
                 first = await mesbak.record_occurrence(session, user_id, today, 1)
                 duplicate = await mesbak.record_occurrence(session, user_id, today, 1)
@@ -115,9 +111,12 @@ def test_mesbak_goal_change_idempotency_cohort_and_account_cascade():
                 await session.commit()
                 session.expire_all()
                 assert await session.get(MesbakProfile, user_id) is None
-                assert await session.scalar(
-                    select(MesbakEntry.user_id).where(MesbakEntry.user_id == user_id)
-                ) is None
+                assert (
+                    await session.scalar(
+                        select(MesbakEntry.user_id).where(MesbakEntry.user_id == user_id)
+                    )
+                    is None
+                )
         finally:
             async with session_pool() as session:
                 await session.execute(
@@ -183,18 +182,14 @@ def test_social_opt_in_challenge_league_and_buddy_limits():
                 )
                 await session.commit()
                 for user_id in user_ids:
-                    await mesbak.configure(
-                        session, user_id, 1, [time(6, 30)], today
-                    )
+                    await mesbak.configure(session, user_id, 1, [time(6, 30)], today)
                 await session.commit()
 
                 assert await mesbak.toggle_league(session, user_ids[0], True)
                 league = await mesbak.league_rows(session, today)
                 assert [row[0] for row in league] == [user_ids[0]]
 
-                challenge, status = await mesbak.start_challenge(
-                    session, user_ids[0], 7, today
-                )
+                challenge, status = await mesbak.start_challenge(session, user_ids[0], 7, today)
                 assert challenge is not None and status == "started"
                 for offset in range(7):
                     await mesbak.record_occurrence(
@@ -221,13 +216,17 @@ def test_social_opt_in_challenge_league_and_buddy_limits():
                 buddy_rows = await mesbak.buddy_rows(session, user_ids[0])
                 assert len(buddy_rows) == 1
                 pair_id = buddy_rows[0][0]
-                assert await mesbak.claim_buddy_nudge(
-                    session, user_ids[0], pair_id, today
-                ) == ("ok", user_ids[1], "invite")
+                assert await mesbak.claim_buddy_nudge(session, user_ids[0], pair_id, today) == (
+                    "ok",
+                    user_ids[1],
+                    "invite",
+                )
                 await session.commit()
-                assert await mesbak.claim_buddy_nudge(
-                    session, user_ids[0], pair_id, today
-                ) == ("limit", user_ids[1], "invite")
+                assert await mesbak.claim_buddy_nudge(session, user_ids[0], pair_id, today) == (
+                    "limit",
+                    user_ids[1],
+                    "invite",
+                )
                 followup_challenge, challenge_status = await mesbak.start_challenge(
                     session, user_ids[0], 30, today + timedelta(days=7)
                 )
@@ -237,13 +236,9 @@ def test_social_opt_in_challenge_league_and_buddy_limits():
                 assert await mesbak.create_buddy_invite(
                     session, user_ids[0], followup_hash, now + timedelta(days=7)
                 )
-                before_exit = await analytics.mesbak_stats(
-                    session, today + timedelta(days=6)
-                )
+                before_exit = await analytics.mesbak_stats(session, today + timedelta(days=6))
                 assert await mesbak.set_enabled(session, user_ids[0], False)
-                after_exit = await analytics.mesbak_stats(
-                    session, today + timedelta(days=6)
-                )
+                after_exit = await analytics.mesbak_stats(session, today + timedelta(days=6))
                 assert after_exit["mesbak_members"] == before_exit["mesbak_members"] - 1
                 assert after_exit["mesbak_active_7d"] == before_exit["mesbak_active_7d"] - 1
                 await session.commit()
@@ -280,18 +275,19 @@ def test_mesbak_random_buddy_queue_is_fifo_and_allows_multiple_buddies():
         engine = create_async_engine(TEST_DATABASE_URL)
         session_pool = async_sessionmaker(engine, expire_on_commit=False)
         user_ids = [
-            4_300_000_000_000_000_000 + random.randrange(100_000_000_000_000_000)
-            for _ in range(5)
+            4_300_000_000_000_000_000 + random.randrange(100_000_000_000_000_000) for _ in range(5)
         ]
         today = date(2026, 10, 26)
         try:
             async with session_pool() as session:
                 session.add_all(
-                    [User(id=user_ids[0], display_name="First User"),
-                     User(id=user_ids[1], display_name="Second User"),
-                     User(id=user_ids[2], display_name="Third User"),
-                     User(id=user_ids[3], display_name="Fourth User"),
-                     User(id=user_ids[4], display_name="Fifth User")]
+                    [
+                        User(id=user_ids[0], display_name="First User"),
+                        User(id=user_ids[1], display_name="Second User"),
+                        User(id=user_ids[2], display_name="Third User"),
+                        User(id=user_ids[3], display_name="Fourth User"),
+                        User(id=user_ids[4], display_name="Fifth User"),
+                    ]
                 )
                 await session.commit()
                 for user_id in user_ids[:4]:
@@ -381,13 +377,13 @@ def test_mesbak_random_buddy_queue_is_fifo_and_allows_multiple_buddies():
 
     asyncio.run(run_test())
 
+
 def test_users_completed_on_days_batch_matches_completed_day_set():
     async def run_test() -> None:
         engine = create_async_engine(TEST_DATABASE_URL)
         session_pool = async_sessionmaker(engine, expire_on_commit=False)
         user_ids = [
-            4_400_000_000_000_000_000 + random.randrange(100_000_000_000_000_000)
-            for _ in range(3)
+            4_400_000_000_000_000_000 + random.randrange(100_000_000_000_000_000) for _ in range(3)
         ]
         today = date(2026, 10, 26)
         try:
@@ -395,15 +391,16 @@ def test_users_completed_on_days_batch_matches_completed_day_set():
                 session.add_all([User(id=uid) for uid in user_ids])
                 await session.commit()
                 for user_id in user_ids:
-                    await mesbak.configure(
-                        session, user_id, 2, [time(6, 30), time(19, 0)], today
-                    )
+                    await mesbak.configure(session, user_id, 2, [time(6, 30), time(19, 0)], today)
                 await session.commit()
 
                 # هیچ‌کامل‌امروز
-                assert await mesbak.users_completed_on_days(
-                    session, [(uid, today) for uid in user_ids]
-                ) == set()
+                assert (
+                    await mesbak.users_completed_on_days(
+                        session, [(uid, today) for uid in user_ids]
+                    )
+                    == set()
+                )
 
                 # کاربر دوم: یک نوبت (ناقص)، کاربر سوم: دو نوبت (کامل)
                 for slot in (1, 2):

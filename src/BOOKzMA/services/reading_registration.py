@@ -23,9 +23,7 @@ class ReadingRegistration:
     badges: tuple[str, ...]
 
 
-async def register_reading(
-    session: AsyncSession, user: User, today: date
-) -> ReadingRegistration:
+async def register_reading(session: AsyncSession, user: User, today: date) -> ReadingRegistration:
     created = await readings.mark_read(session, user.id, today)
     freeze_change = None
     comeback_change = None

@@ -55,6 +55,7 @@ SEARCH_FORM_STATES = frozenset(state.state for state in SearchCatalog.__all_stat
 async def on_group_catalog_callback(callback: CallbackQuery) -> None:
     await callback.answer(texts.BOOK_PRIVATE_ONLY, show_alert=True)
 
+
 def _catalog_message_id(data: str | None, action: str) -> int | None:
     match = CATALOG_MESSAGE_RE.fullmatch(data or "")
     if match is None or match[1] != action:
@@ -146,9 +147,7 @@ async def on_catalog_search(
     await show(callback, texts.CATALOG_ASK_QUERY, keyboards.catalog_search_cancel_kb())
 
 
-@private_router.message(
-    SearchCatalog.waiting_for_query, F.text, flags={"book_form_input": True}
-)
+@private_router.message(SearchCatalog.waiting_for_query, F.text, flags={"book_form_input": True})
 async def on_catalog_query(
     message: Message,
     state: FSMContext,
@@ -341,9 +340,7 @@ async def on_catalog_add(
             has_page_count=book.total_pages is not None,
             catalog_message_id=book.catalog_message_id,
             catalog_url=(
-                _channel_url(
-                    settings.channel_catalog_channel_username, book.catalog_message_id
-                )
+                _channel_url(settings.channel_catalog_channel_username, book.catalog_message_id)
                 if book.catalog_message_id is not None
                 else None
             ),
@@ -396,11 +393,11 @@ async def on_catalog_inline_query(
                     InlineQueryResultArticle(
                         id=str(hit.message_id),
                         title=title[:64],
-                        description=strip_channel_handles(
-                            hit.caption_preview or "لینک پست کانال"
-                        )[:128],
+                        description=strip_channel_handles(hit.caption_preview or "لینک پست کانال")[
+                            :128
+                        ],
                         input_message_content=InputTextMessageContent(
-                            message_text=f"{caption}\n<a href=\"{post_url}\">مشاهدهٔ پست</a>"
+                            message_text=f'{caption}\n<a href="{post_url}">مشاهدهٔ پست</a>'
                         ),
                     )
                 )

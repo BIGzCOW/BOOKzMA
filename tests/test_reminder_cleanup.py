@@ -180,9 +180,7 @@ def test_reading_scheduler_stores_id_and_cleans_racing_delivery(monkeypatch):
         monkeypatch.setattr(scheduler.asyncio, "sleep", no_sleep)
         session = Session()
 
-        await scheduler.send_due(
-            SimpleNamespace(send_message=send_message), SessionPool(session)
-        )
+        await scheduler.send_due(SimpleNamespace(send_message=send_message), SessionPool(session))
 
         assert stored == [(777, "reading", 5, TODAY, 99)]
         assert reminder.last_sent_on == TODAY
@@ -206,15 +204,9 @@ def test_reminder_cleanup_is_scoped_by_owner_habit_day_and_keeps_source_message(
                 session.add(User(id=user_id))
 
             async with pool.begin() as session:
-                await reminders_repo.record_message(
-                    session, user_id, "reading", 1, TODAY, 101
-                )
-                await reminders_repo.record_message(
-                    session, user_id, "reading", 2, TODAY, 102
-                )
-                await reminders_repo.record_message(
-                    session, user_id, "mesbak", 1, TODAY, 201
-                )
+                await reminders_repo.record_message(session, user_id, "reading", 1, TODAY, 101)
+                await reminders_repo.record_message(session, user_id, "reading", 2, TODAY, 102)
+                await reminders_repo.record_message(session, user_id, "mesbak", 1, TODAY, 201)
                 await reminders_repo.record_message(
                     session, user_id, "reading", 1, previous_day, 301
                 )
@@ -232,10 +224,7 @@ def test_reminder_cleanup_is_scoped_by_owner_habit_day_and_keeps_source_message(
                         select(ReminderMessage).where(ReminderMessage.user_id == user_id)
                     )
                 )
-                state = {
-                    row.message_id: row.cleanup_pending
-                    for row in rows
-                }
+                state = {row.message_id: row.cleanup_pending for row in rows}
                 assert state == {102: True, 201: False, 301: False}
         finally:
             async with pool.begin() as session:
@@ -260,18 +249,10 @@ def test_reminder_cleanup_retries_racing_delivery_and_cascades_on_account_delete
                 session.add(User(id=user_id))
 
             async with pool.begin() as session:
-                await reminders_repo.record_message(
-                    session, user_id, "mesbak", 1, TODAY, 401
-                )
-                await reminders_repo.request_message_cleanup(
-                    session, user_id, "mesbak", TODAY
-                )
-                await reminders_repo.record_message(
-                    session, user_id, "mesbak", 2, TODAY, 402
-                )
-                await reminders_repo.request_message_cleanup(
-                    session, user_id, "mesbak", TODAY
-                )
+                await reminders_repo.record_message(session, user_id, "mesbak", 1, TODAY, 401)
+                await reminders_repo.request_message_cleanup(session, user_id, "mesbak", TODAY)
+                await reminders_repo.record_message(session, user_id, "mesbak", 2, TODAY, 402)
+                await reminders_repo.request_message_cleanup(session, user_id, "mesbak", TODAY)
                 due = await reminders_repo.list_cleanup_pending(session, NOW, user_id=user_id)
                 assert [row.message_id for row in due] == [401, 402]
                 await reminders_repo.defer_message_cleanup(session, due[0].id, retry_at)

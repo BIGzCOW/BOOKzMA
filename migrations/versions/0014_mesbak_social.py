@@ -3,6 +3,7 @@
 Revision ID: 0014
 Revises: 0013
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -54,9 +55,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["inviter_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("token_hash"),
     )
-    op.create_index(
-        "ix_mesbak_buddy_invites_inviter", "mesbak_buddy_invites", ["inviter_id"]
-    )
+    op.create_index("ix_mesbak_buddy_invites_inviter", "mesbak_buddy_invites", ["inviter_id"])
     op.create_table(
         "mesbak_buddy_pairs",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),

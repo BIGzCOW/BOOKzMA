@@ -25,9 +25,7 @@ MAX_LATE = timedelta(minutes=10)
 MAX_ATTEMPTS_PER_DAY = 3
 
 
-async def mesbak_reminder_loop(
-    bot: Bot, session_pool: async_sessionmaker[AsyncSession]
-) -> None:
+async def mesbak_reminder_loop(bot: Bot, session_pool: async_sessionmaker[AsyncSession]) -> None:
     log.info("mesbak reminder loop started")
     while True:
         try:

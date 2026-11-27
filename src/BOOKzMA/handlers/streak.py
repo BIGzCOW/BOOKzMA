@@ -41,9 +41,7 @@ async def on_read(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> N
             registration.freeze_change is not None and registration.freeze_change.earned
         ),
         freeze_balance=registration.freeze_balance,
-        comeback=texts.comeback_line(
-            registration.comeback_change, registration.streak
-        ),
+        comeback=texts.comeback_line(registration.comeback_change, registration.streak),
         badges=list(registration.badges),
     )
     await callback.answer(toast)

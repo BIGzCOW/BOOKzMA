@@ -31,16 +31,12 @@ async def has_read(session: AsyncSession, user_id: int, day: date) -> bool:
     return found is not None
 
 
-async def users_read_on_days(
-    session: AsyncSession, user_days: list[tuple[int, date]]
-) -> set[int]:
+async def users_read_on_days(session: AsyncSession, user_days: list[tuple[int, date]]) -> set[int]:
     """Return users who have a reading row for their own local day."""
     if not user_days:
         return set()
     result = await session.scalars(
-        select(ReadingLog.user_id).where(
-            tuple_(ReadingLog.user_id, ReadingLog.day).in_(user_days)
-        )
+        select(ReadingLog.user_id).where(tuple_(ReadingLog.user_id, ReadingLog.day).in_(user_days))
     )
     return set(result)
 

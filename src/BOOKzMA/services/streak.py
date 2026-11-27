@@ -2,9 +2,7 @@ from collections.abc import Iterable
 from datetime import date, timedelta
 
 
-def compute_streak(
-    days: Iterable[date], today: date, freeze_days: Iterable[date] = ()
-) -> int:
+def compute_streak(days: Iterable[date], today: date, freeze_days: Iterable[date] = ()) -> int:
     # اگه امروز هنوز نخونده ولی دیروز خونده، استریک تا آخر امروز زنده‌ست
     day_set = set(days) | set(freeze_days)
     cursor = today if today in day_set else today - timedelta(days=1)
@@ -86,7 +84,6 @@ def weekly_summary(
         "days_read": len(read_days),
         "streak": compute_streak(day_set, today, frozen_set),
         "days": [
-            {"date": day, "read": day in day_set, "frozen": day in frozen_set}
-            for day in week_days
+            {"date": day, "read": day in day_set, "frozen": day in frozen_set} for day in week_days
         ],
     }

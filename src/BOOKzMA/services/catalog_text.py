@@ -10,9 +10,9 @@ CAPTION_PREVIEW_LIMIT = 220
 SEARCH_TEXT_LIMIT = 6000
 CHANNEL_HANDLE_RE = re.compile(r"@[A-Za-z0-9_]{5,32}")
 PERSIAN_PLURAL_SUFFIX_RE = re.compile(r"(?<=[\u0600-\u06ff])ها\b")
-PERSIAN_DIGIT_TRANSLATION = str.maketrans(
-    "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"
-)
+PERSIAN_DIGIT_TRANSLATION = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
 def strip_channel_handles(value: str | None) -> str:
     if value is None:
         return ""
@@ -39,9 +39,7 @@ def normalize_catalog_text(value: str) -> str:
         )
     )
     normalized = "".join(
-        character
-        for character in normalized
-        if unicodedata.category(character) != "Mn"
+        character for character in normalized if unicodedata.category(character) != "Mn"
     )
     normalized = normalized.translate(PERSIAN_DIGIT_TRANSLATION)
     normalized = PERSIAN_PLURAL_SUFFIX_RE.sub(" ها", normalized)
@@ -94,9 +92,7 @@ def clean_caption(value: str | None, channel_username: str) -> tuple[str, str, s
     if not value:
         return "", "", ""
     username = re.escape(channel_username.lstrip("@"))
-    signature = re.compile(
-        rf"(?i)(?<![\w])(?:@|https?://)?(?:t\.me/)?{username}(?![\w])"
-    )
+    signature = re.compile(rf"(?i)(?<![\w])(?:@|https?://)?(?:t\.me/)?{username}(?![\w])")
     display = re.sub(r"\s+", " ", signature.sub(" ", value)).strip()
     preview = display[:CAPTION_PREVIEW_LIMIT]
     if len(display) > CAPTION_PREVIEW_LIMIT:

@@ -69,6 +69,7 @@ class Settings(CatalogSettings):
     backup_keep_local: int = 1
     rate_limit_max_updates: int = 20
     rate_limit_window_seconds: int = 10
+    log_level: str = "INFO"
 
     @property
     def admin_ids(self) -> frozenset[int]:

@@ -3,6 +3,7 @@
 Revision ID: 0012
 Revises: 0011
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -25,15 +26,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    duplicate_users = op.get_bind().execute(
-        sa.text(
-            "SELECT user_id FROM ("
-            "SELECT user_a AS user_id FROM buddy_pairs WHERE status = 'active' "
-            "UNION ALL "
-            "SELECT user_b AS user_id FROM buddy_pairs WHERE status = 'active'"
-            ") AS active_users GROUP BY user_id HAVING count(*) > 1 LIMIT 1"
+    duplicate_users = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                "SELECT user_id FROM ("
+                "SELECT user_a AS user_id FROM buddy_pairs WHERE status = 'active' "
+                "UNION ALL "
+                "SELECT user_b AS user_id FROM buddy_pairs WHERE status = 'active'"
+                ") AS active_users GROUP BY user_id HAVING count(*) > 1 LIMIT 1"
+            )
         )
-    ).first()
+        .first()
+    )
     if duplicate_users is not None:
         raise RuntimeError("Cannot downgrade while users have multiple active study buddies")
 

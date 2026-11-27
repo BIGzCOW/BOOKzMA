@@ -3,6 +3,7 @@
 Revision ID: 0013
 Revises: 0012
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -98,9 +99,7 @@ def downgrade() -> None:
     op.drop_index("ix_mesbak_entries_day", table_name="mesbak_entries")
     op.drop_table("mesbak_entries")
     op.drop_table("mesbak_profiles")
-    op.drop_constraint(
-        "ck_broadcast_campaign_media_type", "broadcast_campaigns", type_="check"
-    )
+    op.drop_constraint("ck_broadcast_campaign_media_type", "broadcast_campaigns", type_="check")
     op.drop_constraint("ck_broadcast_campaign_audience", "broadcast_campaigns", type_="check")
     op.drop_column("broadcast_campaigns", "button_url")
     op.drop_column("broadcast_campaigns", "button_label")

@@ -33,9 +33,7 @@ class SourceBatch:
 
 def seconds_until_next_sync(now: datetime, sync_hour_utc: int) -> float:
     current = now.astimezone(timezone.utc)
-    next_run = datetime.combine(
-        current.date(), time(hour=sync_hour_utc), tzinfo=timezone.utc
-    )
+    next_run = datetime.combine(current.date(), time(hour=sync_hour_utc), tzinfo=timezone.utc)
     if next_run <= current:
         next_run += timedelta(days=1)
     return (next_run - current).total_seconds()
@@ -88,12 +86,10 @@ def _read_source_batch(
         ) = row
         if not in_main or is_duplicate or not message_id or message_id <= 0:
             continue
-        _caption_display, caption_preview, caption_search = clean_caption(
-            caption, channel_username
-        )
-        search_text = normalize_catalog_text(
-            f"{file_name or ''} {caption_search}"
-        )[:SEARCH_TEXT_LIMIT]
+        _caption_display, caption_preview, caption_search = clean_caption(caption, channel_username)
+        search_text = normalize_catalog_text(f"{file_name or ''} {caption_search}")[
+            :SEARCH_TEXT_LIMIT
+        ]
         entries.append(
             {
                 "message_id": int(message_id),
@@ -120,9 +116,7 @@ def _search_document(entry: dict[str, object]) -> dict[str, Any]:
     return build_search_document(
         message_id=int(entry["message_id"]),
         file_name=str(entry["file_name"]) if entry.get("file_name") else None,
-        caption_preview=(
-            str(entry["caption_preview"]) if entry.get("caption_preview") else None
-        ),
+        caption_preview=(str(entry["caption_preview"]) if entry.get("caption_preview") else None),
         caption_search=str(entry.get("caption_search") or ""),
         file_size=int(entry["file_size"]) if entry.get("file_size") is not None else None,
         mime_type=str(entry["mime_type"]) if entry.get("mime_type") else None,
@@ -140,9 +134,7 @@ async def flush_pending_index_operations(
     completed = 0
     while True:
         async with session_pool() as session:
-            operations = await book_catalog.pending_index_operations(
-                session, limit=batch_size
-            )
+            operations = await book_catalog.pending_index_operations(session, limit=batch_size)
         if not operations:
             return completed
 
@@ -152,9 +144,7 @@ async def flush_pending_index_operations(
             if operation.operation == "upsert" and operation.document is not None
         ]
         message_ids = [
-            operation.message_id
-            for operation in operations
-            if operation.operation == "delete"
+            operation.message_id for operation in operations if operation.operation == "delete"
         ]
         try:
             if documents:
@@ -242,18 +232,13 @@ async def sync_once(
             existing_entries = await book_catalog.source_entries_in_range(
                 session, cursor, batch.next_source_row_id
             )
-            existing_by_source_id = {
-                entry.source_row_id: entry for entry in existing_entries
-            }
-            incoming_by_source_id = {
-                int(entry["source_row_id"]): entry for entry in batch.entries
-            }
+            existing_by_source_id = {entry.source_row_id: entry for entry in existing_entries}
+            incoming_by_source_id = {int(entry["source_row_id"]): entry for entry in batch.entries}
             stale_ids = [
                 existing.message_id
                 for source_row_id, existing in existing_by_source_id.items()
                 if source_row_id not in incoming_by_source_id
-                or int(incoming_by_source_id[source_row_id]["message_id"])
-                != existing.message_id
+                or int(incoming_by_source_id[source_row_id]["message_id"]) != existing.message_id
             ]
             await book_catalog.delete_entries(session, stale_ids)
             await book_catalog.queue_index_deletes(session, stale_ids)

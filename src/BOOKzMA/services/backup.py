@@ -48,9 +48,7 @@ def parse_backup_name(name: str) -> datetime | None:
     if match is None:
         return None
     try:
-        return datetime(
-            *(int(part) for part in match.groups()), tzinfo=timezone.utc
-        )
+        return datetime(*(int(part) for part in match.groups()), tzinfo=timezone.utc)
     except ValueError:
         # الگو درست است ولی تاریخ نامعتبر است (مثل ماه ۱۳)
         return None
@@ -67,7 +65,7 @@ def select_to_delete(names: list[str], keep: int) -> list[str]:
         reverse=True,
     )
     valid = [name for created, name in known if created is not None]
-    return valid[max(keep, 0):]
+    return valid[max(keep, 0) :]
 
 
 def parse_dump_target(database_url: str) -> DumpTarget:
@@ -142,7 +140,7 @@ def _stderr_tail(stderr: bytes) -> str:
 
 def _is_unsupported_transaction_timeout(stderr: bytes) -> bool:
     expected_error = (
-        b'pg_restore: error: could not execute query: ERROR:  unrecognized configuration '
+        b"pg_restore: error: could not execute query: ERROR:  unrecognized configuration "
         b'parameter "transaction_timeout"'
     )
     return (
@@ -212,10 +210,14 @@ async def run_backup(settings: Settings, *, now: datetime | None = None) -> Back
         try:
             proc = await asyncio.create_subprocess_exec(
                 "pg_dump",
-                "-h", target.host,
-                "-p", str(target.port),
-                "-U", target.user,
-                "-d", target.dbname,
+                "-h",
+                target.host,
+                "-p",
+                str(target.port),
+                "-U",
+                target.user,
+                "-d",
+                target.dbname,
                 "-Fc",
                 stdout=out,
                 stderr=asyncio.subprocess.PIPE,
@@ -265,10 +267,14 @@ async def run_restore(settings: Settings, filename: str) -> None:
             "--no-acl",
             "--clean",
             "--if-exists",
-            "-h", target.host,
-            "-p", str(target.port),
-            "-U", target.user,
-            "-d", target.dbname,
+            "-h",
+            target.host,
+            "-p",
+            str(target.port),
+            "-U",
+            target.user,
+            "-d",
+            target.dbname,
             str(path),
         ],
         target,

@@ -42,8 +42,7 @@ class SupportReply(StatesGroup):
 
 
 SUPPORT_FORM_STATES = frozenset(
-    state.state
-    for state in (*SupportTicket.__all_states__, *SupportReply.__all_states__)
+    state.state for state in (*SupportTicket.__all_states__, *SupportReply.__all_states__)
 )
 
 
@@ -55,17 +54,13 @@ async def render_profile(event: Message | CallbackQuery, session: AsyncSession) 
     mesbak_streak = None
     mesbak_freeze_balance = 0
     if mesbak_profile is not None and mesbak_profile.enabled:
-        mesbak_freeze_days = await streak_freezes.used_days(
-            session, user.id, habit="mesbak"
-        )
+        mesbak_freeze_days = await streak_freezes.used_days(session, user.id, habit="mesbak")
         mesbak_streak = current_streak(
             completed_days(await mesbak_repo.daily_records(session, user.id)),
             today,
             mesbak_freeze_days,
         )
-        mesbak_freeze_balance = await streak_freezes.balance(
-            session, user.id, habit="mesbak"
-        )
+        mesbak_freeze_balance = await streak_freezes.balance(session, user.id, habit="mesbak")
     await session.commit()
     days = await readings.get_days(session, user.id)
     frozen_days = await streak_freezes.used_days(session, user.id)
@@ -82,7 +77,7 @@ async def render_profile(event: Message | CallbackQuery, session: AsyncSession) 
         user.leaderboard_opt_out,
         await badges_repo.list_for_user(session, user.id),
         mesbak_streak,
-            mesbak_freeze_balance,
+        mesbak_freeze_balance,
     )
     if isinstance(event, Message):
         await event.answer(
@@ -200,13 +195,13 @@ async def on_menu_leaderboard(message: Message, session: AsyncSession) -> None:
 
 
 @router.callback_query(F.data == "support")
-async def on_support_callback(
-    callback: CallbackQuery, settings: Settings
-) -> None:
+async def on_support_callback(callback: CallbackQuery, settings: Settings) -> None:
     support_username = settings.support_telegram_username.strip().removeprefix("@")
-    support_url = f"https://t.me/{support_username}" if re.fullmatch(
-        r"[A-Za-z0-9_]{5,32}", support_username
-    ) else ""
+    support_url = (
+        f"https://t.me/{support_username}"
+        if re.fullmatch(r"[A-Za-z0-9_]{5,32}", support_username)
+        else ""
+    )
     github_url = settings.github_url.strip()
     if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?", github_url):
         github_url = ""
@@ -220,8 +215,9 @@ async def on_support_callback(
 
 @router.callback_query(
     F.data == "support:ticket",
-    lambda callback: isinstance(callback.message, Message)
-    and callback.message.chat.type == "private",
+    lambda callback: (
+        isinstance(callback.message, Message) and callback.message.chat.type == "private"
+    ),
 )
 async def on_support_ticket(
     callback: CallbackQuery, state: FSMContext, session: AsyncSession
@@ -247,8 +243,7 @@ async def on_support_ticket(
 @router.callback_query(
     F.data == "support:ticket",
     lambda callback: (
-        not isinstance(callback.message, Message)
-        or callback.message.chat.type != "private"
+        not isinstance(callback.message, Message) or callback.message.chat.type != "private"
     ),
 )
 async def on_group_support_ticket(callback: CallbackQuery) -> None:
@@ -257,8 +252,9 @@ async def on_group_support_ticket(callback: CallbackQuery) -> None:
 
 @router.callback_query(
     F.data.startswith("support:continue:"),
-    lambda callback: isinstance(callback.message, Message)
-    and callback.message.chat.type == "private",
+    lambda callback: (
+        isinstance(callback.message, Message) and callback.message.chat.type == "private"
+    ),
 )
 async def on_support_continue(
     callback: CallbackQuery, state: FSMContext, session: AsyncSession
@@ -284,9 +280,11 @@ async def on_support_continue(
 @router.message(F.text == "💬 پشتیبانی / پیشنهاد")
 async def on_support(message: Message, settings: Settings) -> None:
     support_username = settings.support_telegram_username.strip().removeprefix("@")
-    support_url = f"https://t.me/{support_username}" if re.fullmatch(
-        r"[A-Za-z0-9_]{5,32}", support_username
-    ) else ""
+    support_url = (
+        f"https://t.me/{support_username}"
+        if re.fullmatch(r"[A-Za-z0-9_]{5,32}", support_username)
+        else ""
+    )
     github_url = settings.github_url.strip()
     if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?", github_url):
         github_url = ""
@@ -315,9 +313,7 @@ async def on_support_message(
     data = await state.get_data()
     ticket_id = data.get("support_ticket_id")
     ticket = (
-        await support_repo.get_ticket(session, ticket_id)
-        if isinstance(ticket_id, int)
-        else None
+        await support_repo.get_ticket(session, ticket_id) if isinstance(ticket_id, int) else None
     )
     if ticket is None or ticket.user_id != message.from_user.id or ticket.status != "open":
         await state.clear()
@@ -349,9 +345,7 @@ async def on_support_message(
             continue
 
     if delivered:
-        await support_repo.record_message(
-            session, ticket.id, message.from_user.id, "user_message"
-        )
+        await support_repo.record_message(session, ticket.id, message.from_user.id, "user_message")
         await session.commit()
     else:
         await session.rollback()
@@ -363,8 +357,9 @@ async def on_support_message(
 
 @router.callback_query(
     F.data.startswith("support:reply:"),
-    lambda callback: isinstance(callback.message, Message)
-    and callback.message.chat.type == "private",
+    lambda callback: (
+        isinstance(callback.message, Message) and callback.message.chat.type == "private"
+    ),
 )
 async def on_support_reply(
     callback: CallbackQuery,
@@ -389,8 +384,9 @@ async def on_support_reply(
 
 @router.callback_query(
     F.data.startswith("support:block:"),
-    lambda callback: isinstance(callback.message, Message)
-    and callback.message.chat.type == "private",
+    lambda callback: (
+        isinstance(callback.message, Message) and callback.message.chat.type == "private"
+    ),
 )
 async def on_support_block(
     callback: CallbackQuery, session: AsyncSession, settings: Settings
@@ -403,17 +399,13 @@ async def on_support_block(
     if ticket is None:
         await callback.answer(texts.SUPPORT_TICKET_MISSING, show_alert=True)
         return
-    blocked = await support_repo.toggle_block(
-        session, ticket.user_id, callback.from_user.id
-    )
+    blocked = await support_repo.toggle_block(session, ticket.user_id, callback.from_user.id)
     await session.commit()
     await callback.answer(texts.SUPPORT_BLOCKED if blocked else texts.SUPPORT_UNBLOCKED)
     if isinstance(callback.message, Message):
         try:
             await callback.message.edit_reply_markup(
-                reply_markup=keyboards.support_reply_kb(
-                    ticket.id, ticket.user_id, blocked
-                )
+                reply_markup=keyboards.support_reply_kb(ticket.id, ticket.user_id, blocked)
             )
         except TelegramAPIError:
             return
@@ -436,9 +428,7 @@ async def on_support_reply_message(
     data = await state.get_data()
     ticket_id = data.get("support_ticket_id")
     ticket = (
-        await support_repo.get_ticket(session, ticket_id)
-        if isinstance(ticket_id, int)
-        else None
+        await support_repo.get_ticket(session, ticket_id) if isinstance(ticket_id, int) else None
     )
     if ticket is None or ticket.status != "open":
         await state.clear()
@@ -457,8 +447,6 @@ async def on_support_reply_message(
     except TelegramAPIError:
         await message.answer(texts.SUPPORT_REPLY_FAILED)
         return
-    await support_repo.record_message(
-        session, ticket.id, message.from_user.id, "admin_reply"
-    )
+    await support_repo.record_message(session, ticket.id, message.from_user.id, "admin_reply")
     await session.commit()
     await message.answer(texts.SUPPORT_REPLY_SENT)
