@@ -118,6 +118,7 @@ async def cmd_start(
             reply_markup=keyboards.menu_kb(tg.id in settings.admin_ids),
         )
 
+
 @router.callback_query(F.data == "home")
 async def on_home(
     callback: CallbackQuery, session: AsyncSession, state: FSMContext, settings: Settings

@@ -13,14 +13,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE user_books "
-        "ADD COLUMN IF NOT EXISTS page_count_set_at TIMESTAMPTZ"
-    )
-    op.execute(
-        "ALTER TABLE user_books "
-        "ADD COLUMN IF NOT EXISTS restored_at TIMESTAMPTZ"
-    )
+    op.execute("ALTER TABLE user_books ADD COLUMN IF NOT EXISTS page_count_set_at TIMESTAMPTZ")
+    op.execute("ALTER TABLE user_books ADD COLUMN IF NOT EXISTS restored_at TIMESTAMPTZ")
 
 
 def downgrade() -> None:

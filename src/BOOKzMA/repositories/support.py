@@ -25,16 +25,10 @@ async def get_ticket(session: AsyncSession, ticket_id: int) -> SupportTicket | N
     return await session.get(SupportTicket, ticket_id)
 
 
-async def record_message(
-    session: AsyncSession, ticket_id: int, actor_id: int, kind: str
-) -> None:
-    session.add(
-        SupportEvent(ticket_id=ticket_id, actor_id=actor_id, kind=kind)
-    )
+async def record_message(session: AsyncSession, ticket_id: int, actor_id: int, kind: str) -> None:
+    session.add(SupportEvent(ticket_id=ticket_id, actor_id=actor_id, kind=kind))
     await session.execute(
-        select(SupportTicket.id)
-        .where(SupportTicket.id == ticket_id)
-        .with_for_update()
+        select(SupportTicket.id).where(SupportTicket.id == ticket_id).with_for_update()
     )
     ticket = await session.get(SupportTicket, ticket_id)
     if ticket is not None:
@@ -43,14 +37,13 @@ async def record_message(
 
 
 async def is_blocked(session: AsyncSession, user_id: int) -> bool:
-    return await session.scalar(
-        select(SupportBlock.user_id).where(SupportBlock.user_id == user_id)
-    ) is not None
+    return (
+        await session.scalar(select(SupportBlock.user_id).where(SupportBlock.user_id == user_id))
+        is not None
+    )
 
 
-async def toggle_block(
-    session: AsyncSession, user_id: int, admin_id: int
-) -> bool:
+async def toggle_block(session: AsyncSession, user_id: int, admin_id: int) -> bool:
     await session.execute(select(User.id).where(User.id == user_id).with_for_update())
     blocked = await is_blocked(session, user_id)
     if blocked:

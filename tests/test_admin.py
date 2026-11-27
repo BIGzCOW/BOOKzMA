@@ -169,7 +169,7 @@ def test_freeze_gift_confirmation_is_server_authorized_and_id_scoped(monkeypatch
                 recipients=3,
                 units=2,
                 capped=1,
-                    skipped=0,
+                skipped=0,
             )
 
         async def commit():

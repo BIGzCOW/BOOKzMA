@@ -9,9 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from BOOKzMA.db.models import BuddyInvite, BuddyPair, BuddyQueue, User
 
 
-async def active_pair(
-    session: AsyncSession, user_id: int
-) -> tuple[BuddyPair, int] | None:
+async def active_pair(session: AsyncSession, user_id: int) -> tuple[BuddyPair, int] | None:
     """Return one active pair for compatibility with single-pair callers."""
     pairs = await active_pairs(session, user_id)
     return pairs[0] if pairs else None
@@ -20,14 +18,14 @@ async def active_pair(
 async def active_pairs(session: AsyncSession, user_id: int) -> list[tuple[BuddyPair, int]]:
     """Return every active pair and the other user's ID."""
     result = await session.scalars(
-        select(BuddyPair).where(
+        select(BuddyPair)
+        .where(
             BuddyPair.status == "active",
             (BuddyPair.user_a == user_id) | (BuddyPair.user_b == user_id),
-        ).order_by(BuddyPair.id)
+        )
+        .order_by(BuddyPair.id)
     )
-    return [
-        (pair, pair.user_b if pair.user_a == user_id else pair.user_a) for pair in result
-    ]
+    return [(pair, pair.user_b if pair.user_a == user_id else pair.user_a) for pair in result]
 
 
 async def active_buddy_users(session: AsyncSession, user_id: int) -> list[tuple[BuddyPair, User]]:
@@ -65,7 +63,9 @@ async def is_queued(session: AsyncSession, user_id: int) -> bool:
 async def join_queue(session: AsyncSession, user_id: int) -> bool:
     await session.execute(select(User.id).where(User.id == user_id).with_for_update())
     await session.execute(
-        insert(BuddyQueue).values(user_id=user_id).on_conflict_do_nothing(index_elements=["user_id"])
+        insert(BuddyQueue)
+        .values(user_id=user_id)
+        .on_conflict_do_nothing(index_elements=["user_id"])
     )
     return True
 
@@ -77,9 +77,7 @@ async def create_invite(
     if await is_queued(session, inviter_id):
         return False
     await session.execute(delete(BuddyInvite).where(BuddyInvite.inviter_id == inviter_id))
-    session.add(
-        BuddyInvite(token_hash=token_hash, inviter_id=inviter_id, expires_at=expires_at)
-    )
+    session.add(BuddyInvite(token_hash=token_hash, inviter_id=inviter_id, expires_at=expires_at))
     return True
 
 
@@ -98,9 +96,7 @@ async def redeem_invite(
         return "invalid", None
 
     invite = await session.scalar(
-        select(BuddyInvite)
-        .where(BuddyInvite.token_hash == token_hash)
-        .with_for_update()
+        select(BuddyInvite).where(BuddyInvite.token_hash == token_hash).with_for_update()
     )
     if invite is None:
         return "invalid", None
@@ -142,12 +138,8 @@ async def try_match(session: AsyncSession, user_id: int) -> int | None:
     """
     existing_pair = select(BuddyPair.id).where(
         BuddyPair.status == "active",
-        (
-            (BuddyPair.user_a == user_id) & (BuddyPair.user_b == BuddyQueue.user_id)
-        )
-        | (
-            (BuddyPair.user_b == user_id) & (BuddyPair.user_a == BuddyQueue.user_id)
-        ),
+        ((BuddyPair.user_a == user_id) & (BuddyPair.user_b == BuddyQueue.user_id))
+        | ((BuddyPair.user_b == user_id) & (BuddyPair.user_a == BuddyQueue.user_id)),
     )
     rows = await session.scalars(
         select(BuddyQueue.user_id)
@@ -158,12 +150,8 @@ async def try_match(session: AsyncSession, user_id: int) -> int | None:
     partner = next(iter(rows), None)
     if partner is None:
         return None
-    await session.execute(
-        delete(BuddyQueue).where(BuddyQueue.user_id.in_([user_id, partner]))
-    )
-    session.add(
-        BuddyPair(user_a=min(user_id, partner), user_b=max(user_id, partner))
-    )
+    await session.execute(delete(BuddyQueue).where(BuddyQueue.user_id.in_([user_id, partner])))
+    session.add(BuddyPair(user_a=min(user_id, partner), user_b=max(user_id, partner)))
     return partner
 
 

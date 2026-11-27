@@ -75,9 +75,7 @@ def test_start_onboarding_sends_welcome_with_time_keyboard():
 
         assert sent == [(texts.ONBOARDING_WELCOME, keyboards.onboarding_time_kb())]
         callback_data = {
-            button.callback_data
-            for row in sent[0][1].inline_keyboard
-            for button in row
+            button.callback_data for row in sent[0][1].inline_keyboard for button in row
         }
         assert "mesbak:open" in callback_data
         assert recorded["clears"] == 1
@@ -287,17 +285,13 @@ def test_home_menu_restores_main_keyboard(monkeypatch):
             sent.append((text, reply_markup))
 
         monkeypatch.setattr("BOOKzMA.handlers.start.render_home", fake_render_home)
-        message = SimpleNamespace(
-            from_user=SimpleNamespace(id=777), answer=answer
-        )
+        message = SimpleNamespace(from_user=SimpleNamespace(id=777), answer=answer)
         state, _recorded = _state()
         await on_menu_home(message, Session(), state, SETTINGS)
 
         assert sent[0] == ("home", 777)
         assert sent[1][0] == texts.MAIN_MENU_HINT
-        labels = [
-            button.text for row in sent[1][1].keyboard for button in row
-        ]
+        labels = [button.text for row in sent[1][1].keyboard for button in row]
         assert "🧭 بیشتر" in labels
 
     asyncio.run(run_test())

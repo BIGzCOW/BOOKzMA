@@ -27,9 +27,7 @@ form_router = Router()
 form_router.message.filter(F.chat.type == "private", ~F.text.startswith("/"))
 form_router.callback_query.filter(F.message.chat.type == "private")
 PAGE_SIZE = 8
-BOOK_CALLBACK_RE = re.compile(
-    r"book:(open|log|archive|archive_go|restore|set_pages):(\d{1,10})"
-)
+BOOK_CALLBACK_RE = re.compile(r"book:(open|log|archive|archive_go|restore|set_pages):(\d{1,10})")
 BOOK_NOTE_CALLBACK_RE = re.compile(r"book:note:(?:(edit|clear):)?(\d{1,10})")
 BOOK_PAGE_RE = re.compile(r"books:p:(\d{1,15})")
 BOOK_ARCHIVE_PAGE_RE = re.compile(r"books:archive:p:(\d{1,15})")
@@ -64,9 +62,7 @@ BOOK_FORM_STATES = frozenset(
 )
 
 
-@router.message(
-    F.chat.type != "private", F.text.in_({"📚 کتابخانه من", "📚 کتابخانهٔ من"})
-)
+@router.message(F.chat.type != "private", F.text.in_({"📚 کتابخانه من", "📚 کتابخانهٔ من"}))
 async def on_group_books(message: Message) -> None:
     await message.answer(texts.BOOK_PRIVATE_ONLY)
 
@@ -185,25 +181,22 @@ def _book_detail_keyboard(book, settings: Settings | None):
         )
     catalog_message_id = book.catalog_message_id
     catalog_url = (
-        f"https://t.me/{settings.channel_catalog_channel_username.lstrip('@')}"
-        f"/{catalog_message_id}"
+        f"https://t.me/{settings.channel_catalog_channel_username.lstrip('@')}/{catalog_message_id}"
         if catalog_message_id is not None
         else None
     )
     return keyboards.book_detail_with_pages_kb(
-            book.id,
-            book.status,
-            has_page_count=book.total_pages is not None,
-            has_note=book.note is not None,
-            catalog_message_id=catalog_message_id,
-            catalog_url=catalog_url,
-        )
+        book.id,
+        book.status,
+        has_page_count=book.total_pages is not None,
+        has_note=book.note is not None,
+        catalog_message_id=catalog_message_id,
+        catalog_url=catalog_url,
+    )
 
 
 @private_router.callback_query(F.data == "books")
-async def on_books(
-    callback: CallbackQuery, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_books(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     await callback.answer()
     user = await users.get_or_create(
@@ -217,9 +210,7 @@ async def on_books(
 
 
 @private_router.message(F.text.in_({"📚 کتابخانه من", "📚 کتابخانهٔ من"}))
-async def on_books_menu(
-    message: Message, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_books_menu(message: Message, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     if message.from_user is None:
         return
@@ -256,15 +247,11 @@ async def on_books_archive_page(callback: CallbackQuery, session: AsyncSession) 
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
         return
     await callback.answer()
-    await render_shelf(
-        callback, session, callback.from_user.id, int(match[1]), archived=True
-    )
+    await render_shelf(callback, session, callback.from_user.id, int(match[1]), archived=True)
 
 
 @private_router.callback_query(F.data == "book:add")
-async def on_add_book(
-    callback: CallbackQuery, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_add_book(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     await users.get_or_create(
         session, callback.from_user.id, callback.from_user.username, callback.from_user.full_name
@@ -308,9 +295,7 @@ async def on_book_author_skip(callback: CallbackQuery, state: FSMContext) -> Non
 
 
 @form_router.message(AddBook.waiting_for_total_pages, F.text, flags={"book_form_input": True})
-async def on_book_total_pages(
-    message: Message, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_book_total_pages(message: Message, session: AsyncSession, state: FSMContext) -> None:
     total_pages = parse_positive_int(message.text or "", MAX_BOOK_PAGES)
     if total_pages is None:
         await message.answer(texts.BOOK_BAD_TOTAL_PAGES)
@@ -358,9 +343,7 @@ async def on_book_open(
 
 
 @private_router.callback_query(F.data.startswith("book:note:"))
-async def on_book_note(
-    callback: CallbackQuery, session: AsyncSession, state: FSMContext
-) -> None:
+async def on_book_note(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     match = BOOK_NOTE_CALLBACK_RE.fullmatch(callback.data or "")
     if match is None or int(match[2]) > 2_147_483_647:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
@@ -395,12 +378,8 @@ async def on_book_note(
     await render_book_note(callback, session, callback.from_user.id, book_id)
 
 
-@form_router.message(
-    EditBookNote.waiting_for_note, F.text, flags={"book_form_input": True}
-)
-async def on_book_note_text(
-    message: Message, session: AsyncSession, state: FSMContext
-) -> None:
+@form_router.message(EditBookNote.waiting_for_note, F.text, flags={"book_form_input": True})
+async def on_book_note_text(message: Message, session: AsyncSession, state: FSMContext) -> None:
     note = (message.text or "").strip()
     if not note or len(note) > MAX_BOOK_NOTE_LENGTH:
         await message.answer(texts.BOOK_BAD_NOTE)
@@ -477,9 +456,7 @@ async def on_pages_read(
         message.from_user.full_name,
     )
     today = local_today(user.timezone)
-    result = await books_repo.log_pages(
-        session, user.id, book_id, today, pages, message.message_id
-    )
+    result = await books_repo.log_pages(session, user.id, book_id, today, pages, message.message_id)
     if result.status == "over" and result.progress is not None:
         remaining = result.progress.book.total_pages - result.progress.pages_read
         await session.rollback()
@@ -512,9 +489,7 @@ async def on_pages_read(
                 registration.freeze_change is not None and registration.freeze_change.earned
             ),
             freeze_balance=registration.freeze_balance,
-            comeback=texts.comeback_line(
-                registration.comeback_change, registration.streak
-            ),
+            comeback=texts.comeback_line(registration.comeback_change, registration.streak),
             badges=list(registration.badges),
         )
         if registration.created
@@ -558,9 +533,7 @@ async def on_set_book_pages(
     await show(callback, texts.BOOK_ASK_PAGE_COUNT_LATER, keyboards.books_cancel_kb())
 
 
-@form_router.message(
-    SetBookPages.waiting_for_total_pages, F.text, flags={"book_form_input": True}
-)
+@form_router.message(SetBookPages.waiting_for_total_pages, F.text, flags={"book_form_input": True})
 async def on_set_book_total_pages(
     message: Message,
     session: AsyncSession,
@@ -632,9 +605,7 @@ async def on_book_archive_ask(callback: CallbackQuery, session: AsyncSession) ->
 @private_router.callback_query(F.data.startswith("book:archive_go:"))
 async def on_book_archive(callback: CallbackQuery, session: AsyncSession) -> None:
     book_id = _callback_book_id(callback.data, "archive_go")
-    if book_id is None or not await books_repo.archive(
-        session, callback.from_user.id, book_id
-    ):
+    if book_id is None or not await books_repo.archive(session, callback.from_user.id, book_id):
         await session.rollback()
         await callback.answer(texts.BOOK_NOT_FOUND, show_alert=True)
         return
@@ -648,9 +619,7 @@ async def on_book_restore(
     callback: CallbackQuery, session: AsyncSession, settings: Settings | None = None
 ) -> None:
     book_id = _callback_book_id(callback.data, "restore")
-    if book_id is None or not await books_repo.restore(
-        session, callback.from_user.id, book_id
-    ):
+    if book_id is None or not await books_repo.restore(session, callback.from_user.id, book_id):
         await session.rollback()
         await callback.answer(texts.BOOK_NOT_FOUND, show_alert=True)
         return

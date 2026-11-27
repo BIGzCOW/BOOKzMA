@@ -48,9 +48,7 @@ class MembershipMiddleware(BaseMiddleware):
         session = data.get("session")
         if tg_user is None or not isinstance(session, AsyncSession):
             return
-        user = await users.get_or_create(
-            session, tg_user.id, tg_user.username, tg_user.full_name
-        )
+        user = await users.get_or_create(session, tg_user.id, tg_user.username, tg_user.full_name)
         await activity.record_interaction(session, user.id, datetime.now(timezone.utc).date())
         await session.commit()
 
@@ -59,9 +57,7 @@ class MembershipMiddleware(BaseMiddleware):
         session = data.get("session")
         if tg_user is None or not isinstance(session, AsyncSession):
             return
-        user = await users.get_or_create(
-            session, tg_user.id, tg_user.username, tg_user.full_name
-        )
+        user = await users.get_or_create(session, tg_user.id, tg_user.username, tg_user.full_name)
         await users.mark_started(session, user.id)
         await session.commit()
 

@@ -22,9 +22,7 @@ class DeleteAccount(StatesGroup):
 @router.message(F.text == "🗑 حذف حساب")
 async def on_delete_start_from_menu(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer(
-        texts.ACCOUNT_DELETE_WARN, reply_markup=keyboards.account_delete_warn_kb()
-    )
+    await message.answer(texts.ACCOUNT_DELETE_WARN, reply_markup=keyboards.account_delete_warn_kb())
 
 
 def _normalize(text: str) -> str:

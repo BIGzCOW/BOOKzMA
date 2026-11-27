@@ -66,9 +66,19 @@ def main() -> None:
             fail("تأیید نشد؛ لغو شد.")
 
     cmd = [
-        "docker", "exec", "-i", args.container,
-        "pg_restore", "--no-owner", "--no-acl", "--clean", "--if-exists",
-        "-U", args.db_user, "-d", args.db_name,
+        "docker",
+        "exec",
+        "-i",
+        args.container,
+        "pg_restore",
+        "--no-owner",
+        "--no-acl",
+        "--clean",
+        "--if-exists",
+        "-U",
+        args.db_user,
+        "-d",
+        args.db_name,
     ]
     with dump.open("rb") as fh:
         proc = subprocess.run(cmd, stdin=fh, stderr=subprocess.PIPE)

@@ -146,9 +146,7 @@ async def delete_entries(session: AsyncSession, message_ids: list[int]) -> None:
         )
 
 
-async def queue_index_upserts(
-    session: AsyncSession, documents: list[dict[str, object]]
-) -> None:
+async def queue_index_upserts(session: AsyncSession, documents: list[dict[str, object]]) -> None:
     if not documents:
         return
     statement = insert(BookCatalogIndexOutbox).values(
@@ -211,9 +209,7 @@ async def pending_index_operations(
         .limit(limit)
     )
     return [
-        CatalogIndexOperation(
-            row.id, row.message_id, row.operation, row.document, row.revision
-        )
+        CatalogIndexOperation(row.id, row.message_id, row.operation, row.document, row.revision)
         for row in result.all()
     ]
 
@@ -265,9 +261,7 @@ async def entry_count(session: AsyncSession) -> int:
 
 
 async def pending_operation_count(session: AsyncSession) -> int:
-    return int(
-        await session.scalar(select(func.count()).select_from(BookCatalogIndexOutbox)) or 0
-    )
+    return int(await session.scalar(select(func.count()).select_from(BookCatalogIndexOutbox)) or 0)
 
 
 async def mark_sync_success(

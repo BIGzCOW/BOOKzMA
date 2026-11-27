@@ -21,9 +21,7 @@ async def balance(session: AsyncSession, user_id: int, habit: str = "reading") -
                     0,
                 ),
                 func.coalesce(
-                    func.sum(
-                        case((StreakFreeze.kind == "used", StreakFreeze.quantity), else_=0)
-                    ),
+                    func.sum(case((StreakFreeze.kind == "used", StreakFreeze.quantity), else_=0)),
                     0,
                 ),
             ).where(StreakFreeze.user_id == user_id, StreakFreeze.habit == habit)
@@ -32,9 +30,7 @@ async def balance(session: AsyncSession, user_id: int, habit: str = "reading") -
     return max(0, int(credited) - int(used))
 
 
-async def used_days(
-    session: AsyncSession, user_id: int, habit: str = "reading"
-) -> list[date]:
+async def used_days(session: AsyncSession, user_id: int, habit: str = "reading") -> list[date]:
     result = await session.scalars(
         select(StreakFreeze.day).where(
             StreakFreeze.user_id == user_id,

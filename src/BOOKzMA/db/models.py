@@ -66,16 +66,12 @@ class UserBook(Base):
             "status IN ('planned', 'reading', 'finished', 'archived')",
             name="ck_user_book_status",
         ),
-        UniqueConstraint(
-            "user_id", "catalog_message_id", name="uq_user_book_catalog_message"
-        ),
+        UniqueConstraint("user_id", "catalog_message_id", name="uq_user_book_catalog_message"),
         Index("ix_user_books_user_status", "user_id", "status"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE")
-    )
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String(200))
     author: Mapped[str | None] = mapped_column(String(200))
     note: Mapped[str | None] = mapped_column(Text)
@@ -99,9 +95,7 @@ class SupportTicket(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE")
-    )
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
     status: Mapped[str] = mapped_column(String(16), default="open", server_default="open")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -110,17 +104,13 @@ class SupportTicket(Base):
 class SupportEvent(Base):
     __tablename__ = "support_events"
     __table_args__ = (
-        CheckConstraint(
-            "kind IN ('user_message', 'admin_reply')", name="ck_support_event_kind"
-        ),
+        CheckConstraint("kind IN ('user_message', 'admin_reply')", name="ck_support_event_kind"),
         Index("ix_support_events_created_at", "created_at"),
         Index("ix_support_events_ticket_id", "ticket_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(
-        ForeignKey("support_tickets.id", ondelete="CASCADE")
-    )
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("support_tickets.id", ondelete="CASCADE"))
     actor_id: Mapped[int] = mapped_column(BigInteger)
     kind: Mapped[str] = mapped_column(String(24))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -208,9 +198,7 @@ class BookCatalogIndexOutbox(Base):
     revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_error: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PageLog(Base):
@@ -226,9 +214,7 @@ class PageLog(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_book_id: Mapped[int] = mapped_column(
-        ForeignKey("user_books.id", ondelete="CASCADE")
-    )
+    user_book_id: Mapped[int] = mapped_column(ForeignKey("user_books.id", ondelete="CASCADE"))
     day: Mapped[date] = mapped_column(Date)
     pages_read: Mapped[int] = mapped_column(Integer)
     source_message_id: Mapped[int] = mapped_column(BigInteger)
@@ -290,9 +276,7 @@ class FreezeGiftRecipient(Base):
 class StreakFreeze(Base):
     __tablename__ = "streak_freezes"
     __table_args__ = (
-        CheckConstraint(
-            "kind IN ('earned', 'used', 'gifted')", name="ck_streak_freeze_kind"
-        ),
+        CheckConstraint("kind IN ('earned', 'used', 'gifted')", name="ck_streak_freeze_kind"),
         CheckConstraint("habit IN ('reading', 'mesbak')", name="ck_streak_freeze_habit"),
         CheckConstraint("quantity > 0", name="ck_streak_freeze_quantity"),
         CheckConstraint(
@@ -309,9 +293,7 @@ class StreakFreeze(Base):
             unique=True,
             postgresql_where=text("kind IN ('earned', 'used')"),
         ),
-        UniqueConstraint(
-            "operation_id", "user_id", name="uq_streak_freeze_operation_user"
-        ),
+        UniqueConstraint("operation_id", "user_id", name="uq_streak_freeze_operation_user"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -377,9 +359,7 @@ class BuddyInvite(Base):
     __table_args__ = (Index("ix_buddy_invites_inviter_id", "inviter_id"),)
 
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    inviter_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE")
-    )
+    inviter_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -417,9 +397,7 @@ class BroadcastCampaign(Base):
             "status IN ('pending', 'sending', 'completed', 'cancelled')",
             name="ck_broadcast_campaign_status",
         ),
-        CheckConstraint(
-            "audience IN ('all', 'mesbak')", name="ck_broadcast_campaign_audience"
-        ),
+        CheckConstraint("audience IN ('all', 'mesbak')", name="ck_broadcast_campaign_audience"),
         CheckConstraint(
             "media_type IS NULL OR media_type IN ('photo', 'video')",
             name="ck_broadcast_campaign_media_type",
@@ -468,9 +446,7 @@ class DeletedAccount(Base):
     __tablename__ = "deleted_accounts"
 
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
-    deleted_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     reason: Mapped[str | None] = mapped_column(String(32))
 
 
@@ -609,9 +585,7 @@ class MesbakBuddyInvite(Base):
     __table_args__ = (Index("ix_mesbak_buddy_invites_inviter", "inviter_id"),)
 
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    inviter_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE")
-    )
+    inviter_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -621,9 +595,7 @@ class MesbakBuddyPair(Base):
     __table_args__ = (
         CheckConstraint("user_a < user_b", name="ck_mesbak_buddy_pair_order"),
         CheckConstraint("pair_type IN ('invite', 'random')", name="ck_mesbak_buddy_pair_type"),
-        CheckConstraint(
-            "status IN ('active', 'ended')", name="ck_mesbak_buddy_pair_status"
-        ),
+        CheckConstraint("status IN ('active', 'ended')", name="ck_mesbak_buddy_pair_status"),
         Index(
             "uq_mesbak_buddy_pair_active",
             "user_a",

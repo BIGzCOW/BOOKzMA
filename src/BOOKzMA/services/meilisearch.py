@@ -203,8 +203,7 @@ class MeilisearchClient:
         if not document_ids:
             return None
         if any(
-            not isinstance(document_id, int) or document_id <= 0
-            for document_id in document_ids
+            not isinstance(document_id, int) or document_id <= 0 for document_id in document_ids
         ):
             raise ValueError("document IDs must be positive integers")
         ids = ",".join(str(document_id) for document_id in document_ids)

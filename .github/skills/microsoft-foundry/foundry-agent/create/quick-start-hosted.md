@@ -343,5 +343,3 @@ azd down                                    # tear down all resources when done
 ## Escape Hatch
 
 If any step fails in a way not covered above, the output looks unexpected, or the user's request drifts outside what this quickstart covers → **stop improvising**. Read [create-hosted.md](create-hosted.md) and follow its full workflow.
-
-

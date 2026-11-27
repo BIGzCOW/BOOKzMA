@@ -55,9 +55,7 @@ async def create(
 async def eligible_recipient(
     session: AsyncSession, campaign: BroadcastCampaign, user_id: int
 ) -> bool:
-    statement = select(User.id).where(
-        User.id == user_id, User.broadcast_unavailable.is_(False)
-    )
+    statement = select(User.id).where(User.id == user_id, User.broadcast_unavailable.is_(False))
     if campaign.audience == "mesbak":
         statement = statement.join(MesbakProfile, MesbakProfile.user_id == User.id).where(
             MesbakProfile.enabled.is_(True)
@@ -122,9 +120,7 @@ async def set_delivery_state(
     if state == "sent":
         values["sent_at"] = datetime.now(timezone.utc)
     await session.execute(
-        update(BroadcastDelivery)
-        .where(BroadcastDelivery.id == delivery_id)
-        .values(**values)
+        update(BroadcastDelivery).where(BroadcastDelivery.id == delivery_id).values(**values)
     )
 
 

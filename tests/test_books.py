@@ -134,9 +134,7 @@ def test_embedded_channel_handle_keeps_file_extension_and_is_hidden_from_search_
     )
     assert _book_title(file_name, None, "Document", 289_334) == "برونرپوست"
     assert "@EppiccNURSE" not in texts.book_detail(file_name, None, 0, 100, "reading")
-    assert "@EppiccNURSE" not in texts.pages_logged(
-        file_name, 10, 10, 100, False, "استریک ثبت شد"
-    )
+    assert "@EppiccNURSE" not in texts.pages_logged(file_name, 10, 10, 100, False, "استریک ثبت شد")
 
 
 def test_catalog_file_size_is_rounded_to_one_decimal_place():
@@ -235,9 +233,7 @@ def test_archived_shelf_keyboard_has_separate_navigation_and_pagination():
 
 
 def test_archived_book_detail_offers_restore_instead_of_archive():
-    markup = keyboards.book_detail_with_pages_kb(
-        42, "archived", has_page_count=True
-    )
+    markup = keyboards.book_detail_with_pages_kb(42, "archived", has_page_count=True)
     callbacks = [
         button.callback_data
         for row in markup.inline_keyboard
@@ -271,16 +267,10 @@ def test_finished_book_detail_offers_archive_alongside_catalog_actions():
 
 
 def test_book_detail_and_note_page_offer_private_note_actions():
-    detail = keyboards.book_detail_with_pages_kb(
-        42, "archived", has_page_count=True, has_note=True
-    )
+    detail = keyboards.book_detail_with_pages_kb(42, "archived", has_page_count=True, has_note=True)
     note = keyboards.book_note_kb(42, has_note=True)
-    detail_callbacks = {
-        button.callback_data for row in detail.inline_keyboard for button in row
-    }
-    note_callbacks = {
-        button.callback_data for row in note.inline_keyboard for button in row
-    }
+    detail_callbacks = {button.callback_data for row in detail.inline_keyboard for button in row}
+    note_callbacks = {button.callback_data for row in note.inline_keyboard for button in row}
 
     assert "book:note:42" in detail_callbacks
     assert "book:note:edit:42" in note_callbacks
@@ -316,10 +306,7 @@ def test_inline_button_styles_are_consistent_by_action():
 
 
 def test_streak_leaderboard_shows_only_top_25_and_escapes_names():
-    scores = [
-        (30 - index, "<reader>" if index == 0 else f"reader {index}")
-        for index in range(30)
-    ]
+    scores = [(30 - index, "<reader>" if index == 0 else f"reader {index}") for index in range(30)]
 
     leaderboard = texts.streak_leaderboard(scores)
 

@@ -45,14 +45,10 @@ async def set_leaderboard_opt_out(session: AsyncSession, user_id: int, opt_out: 
 
 
 async def mark_broadcast_unavailable(session: AsyncSession, user_id: int) -> None:
-    await session.execute(
-        update(User).where(User.id == user_id).values(broadcast_unavailable=True)
-    )
+    await session.execute(update(User).where(User.id == user_id).values(broadcast_unavailable=True))
 
 
-async def delete_account(
-    session: AsyncSession, user_id: int, reason: str | None = None
-) -> bool:
+async def delete_account(session: AsyncSession, user_id: int, reason: str | None = None) -> bool:
     """حذف کامل حساب: اول سنگ‌قبر، بعد خود کاربر (CASCADE همهٔ جداول وابسته). idempotent."""
     await session.execute(
         insert(DeletedAccount)
@@ -65,9 +61,7 @@ async def delete_account(
 
 async def restore_account(session: AsyncSession, user_id: int) -> bool:
     """پاک‌کردن سنگ‌قبر برای ثبت‌نام دوبارهٔ صریح کاربر."""
-    result = await session.execute(
-        delete(DeletedAccount).where(DeletedAccount.user_id == user_id)
-    )
+    result = await session.execute(delete(DeletedAccount).where(DeletedAccount.user_id == user_id))
     return result.rowcount == 1
 
 
@@ -136,9 +130,9 @@ async def leaderboard_rows(
     rows = result.all()
     user_days: dict[int, tuple[str | None, str, int, date | None, list, list]] = {}
     for user_id, username, timezone_name, bonus_days, bonus_base, day in rows:
-        user_days.setdefault(
-            user_id, (username, timezone_name, bonus_days, bonus_base, [], [])
-        )[4].append(day)
+        user_days.setdefault(user_id, (username, timezone_name, bonus_days, bonus_base, [], []))[
+            4
+        ].append(day)
     user_ids = list(user_days)
     if not user_ids:
         return []

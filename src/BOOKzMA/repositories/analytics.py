@@ -44,15 +44,13 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
         or 0,
         "starts_7d": await session.scalar(
-            select(func.count()).select_from(User).where(
-                User.started_at >= now - timedelta(days=7)
-            )
+            select(func.count()).select_from(User).where(User.started_at >= now - timedelta(days=7))
         )
         or 0,
         "starts_30d": await session.scalar(
-            select(func.count()).select_from(User).where(
-                User.started_at >= now - timedelta(days=30)
-            )
+            select(func.count())
+            .select_from(User)
+            .where(User.started_at >= now - timedelta(days=30))
         )
         or 0,
         "dau": await _active_users(session, today, today),
@@ -75,31 +73,33 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
         or 0,
         "books_added_7d": await session.scalar(
-            select(func.count()).select_from(UserBook).where(
-                UserBook.created_at >= now - timedelta(days=7)
-            )
+            select(func.count())
+            .select_from(UserBook)
+            .where(UserBook.created_at >= now - timedelta(days=7))
         )
         or 0,
         "books_archived_7d": await session.scalar(
-            select(func.count()).select_from(UserBook).where(
-                UserBook.archived_at >= now - timedelta(days=7)
-            )
+            select(func.count())
+            .select_from(UserBook)
+            .where(UserBook.archived_at >= now - timedelta(days=7))
         )
         or 0,
         "books_restored_7d": await session.scalar(
-            select(func.count()).select_from(UserBook).where(
-                UserBook.restored_at >= now - timedelta(days=7)
-            )
+            select(func.count())
+            .select_from(UserBook)
+            .where(UserBook.restored_at >= now - timedelta(days=7))
         )
         or 0,
-            "page_sessions_7d": await session.scalar(
-                select(func.count())
-                .select_from(PageLog)
-                .where(PageLog.day.between(seven_days_ago, today))
+        "page_sessions_7d": await session.scalar(
+            select(func.count())
+            .select_from(PageLog)
+            .where(PageLog.day.between(seven_days_ago, today))
         )
         or 0,
         "page_counts_set_7d": await session.scalar(
-            select(func.count()).select_from(UserBook).where(
+            select(func.count())
+            .select_from(UserBook)
+            .where(
                 UserBook.page_count_set_at >= now - timedelta(days=7),
                 UserBook.page_count_set_at <= now,
             )
@@ -117,20 +117,24 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
         or 0,
         "support_tickets_7d": await session.scalar(
-            select(func.count()).select_from(SupportTicket).where(
-                SupportTicket.created_at >= now - timedelta(days=7)
-            )
+            select(func.count())
+            .select_from(SupportTicket)
+            .where(SupportTicket.created_at >= now - timedelta(days=7))
         )
         or 0,
         "support_messages_7d": await session.scalar(
-            select(func.count()).select_from(SupportEvent).where(
+            select(func.count())
+            .select_from(SupportEvent)
+            .where(
                 SupportEvent.kind == "user_message",
                 SupportEvent.created_at >= now - timedelta(days=7),
             )
         )
         or 0,
         "support_replies_7d": await session.scalar(
-            select(func.count()).select_from(SupportEvent).where(
+            select(func.count())
+            .select_from(SupportEvent)
+            .where(
                 SupportEvent.kind == "admin_reply",
                 SupportEvent.created_at >= now - timedelta(days=7),
             )
@@ -157,9 +161,7 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
         or 0,
         "comeback_users": await session.scalar(
-            select(func.count())
-            .select_from(User)
-            .where(User.comeback_bonus_days > 0)
+            select(func.count()).select_from(User).where(User.comeback_bonus_days > 0)
         )
         or 0,
     }
@@ -252,21 +254,24 @@ async def dashboard(session: AsyncSession, today: date) -> dict[str, int]:
         )
     )
     counts.update(usage_row.one()._mapping)
-    counts["catalog_books_added_7d"] = await session.scalar(
-        select(func.count()).select_from(UserBook).where(
-            UserBook.catalog_message_id.is_not(None),
-            UserBook.created_at >= now - timedelta(days=7),
+    counts["catalog_books_added_7d"] = (
+        await session.scalar(
+            select(func.count())
+            .select_from(UserBook)
+            .where(
+                UserBook.catalog_message_id.is_not(None),
+                UserBook.created_at >= now - timedelta(days=7),
+            )
         )
-    ) or 0
+        or 0
+    )
     counts["inactive_30d"] = await _inactive_starters(session, thirty_days_ago)
     counts.update(await retention_rates(session, today))
     counts.update(await streak_stats(session))
     counts.update(await badges_stats(session))
     counts.update(await buddy_stats(session))
     counts.update(await mesbak_stats(session, today))
-    deleted_total, deleted_recent = await users.deletion_counts(
-        session, now - timedelta(days=7)
-    )
+    deleted_total, deleted_recent = await users.deletion_counts(session, now - timedelta(days=7))
     counts["accounts_deleted"] = deleted_total
     counts["deletions_7d"] = deleted_recent
     return counts
@@ -289,9 +294,7 @@ async def record_catalog_usage(session: AsyncSession, **increments: int) -> None
     if not increments:
         return
 
-    statement = insert(CatalogUsageDay).values(
-        day=datetime.now(timezone.utc).date(), **increments
-    )
+    statement = insert(CatalogUsageDay).values(day=datetime.now(timezone.utc).date(), **increments)
     await session.execute(
         statement.on_conflict_do_update(
             index_elements=[CatalogUsageDay.day],
@@ -315,16 +318,21 @@ async def activity_series(
         .order_by(ActivityDay.day)
     )
     counts = dict(result.all())
-    return [(start + timedelta(days=offset), counts.get(start + timedelta(days=offset), 0))
-            for offset in range(days)]
+    return [
+        (start + timedelta(days=offset), counts.get(start + timedelta(days=offset), 0))
+        for offset in range(days)
+    ]
 
 
 async def _active_users(session: AsyncSession, start: date, end: date) -> int:
-    return await session.scalar(
-        select(func.count(func.distinct(ActivityDay.user_id))).where(
-            ActivityDay.day.between(start, end)
+    return (
+        await session.scalar(
+            select(func.count(func.distinct(ActivityDay.user_id))).where(
+                ActivityDay.day.between(start, end)
+            )
         )
-    ) or 0
+        or 0
+    )
 
 
 async def _inactive_starters(session: AsyncSession, since: date) -> int:
@@ -334,27 +342,36 @@ async def _inactive_starters(session: AsyncSession, since: date) -> int:
         .where(ActivityDay.user_id == User.id, ActivityDay.day >= since)
         .exists()
     )
-    return await session.scalar(
-        select(func.count()).select_from(User).where(
-            User.started_at < observed_since, ~has_recent_activity
+    return (
+        await session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.started_at < observed_since, ~has_recent_activity)
         )
-    ) or 0
+        or 0
+    )
 
 
 async def _readers(session: AsyncSession, start: date, end: date) -> int:
     created_day_utc = _utc_day(ReadingLog.created_at)
-    return await session.scalar(
-        select(func.count(func.distinct(ReadingLog.user_id))).where(
-            created_day_utc.between(start, end)
+    return (
+        await session.scalar(
+            select(func.count(func.distinct(ReadingLog.user_id))).where(
+                created_day_utc.between(start, end)
+            )
         )
-    ) or 0
+        or 0
+    )
 
 
 async def _reading_days(session: AsyncSession, start: date, end: date) -> int:
     created_day_utc = _utc_day(ReadingLog.created_at)
-    return await session.scalar(
-        select(func.count()).select_from(ReadingLog).where(created_day_utc.between(start, end))
-    ) or 0
+    return (
+        await session.scalar(
+            select(func.count()).select_from(ReadingLog).where(created_day_utc.between(start, end))
+        )
+        or 0
+    )
 
 
 async def retention_rates(session: AsyncSession, today: date) -> dict[str, int]:
@@ -365,19 +382,22 @@ async def retention_rates(session: AsyncSession, today: date) -> dict[str, int]:
         cohort_end = today - timedelta(days=days)
         cohort = User.started_at.is_not(None) & started_day.between(cohort_start, cohort_end)
         total = await session.scalar(select(func.count()).select_from(User).where(cohort)) or 0
-        returned = await session.scalar(
-            select(func.count())
-            .select_from(User)
-            .where(
-                cohort,
-                select(ActivityDay.user_id)
+        returned = (
+            await session.scalar(
+                select(func.count())
+                .select_from(User)
                 .where(
-                    ActivityDay.user_id == User.id,
-                    ActivityDay.day == started_day + days,
+                    cohort,
+                    select(ActivityDay.user_id)
+                    .where(
+                        ActivityDay.user_id == User.id,
+                        ActivityDay.day == started_day + days,
+                    )
+                    .exists(),
                 )
-                .exists(),
             )
-        ) or 0
+            or 0
+        )
         rates[f"retention_d{days}"] = round(returned * 100 / total) if total else 0
     return rates
 
@@ -401,6 +421,8 @@ async def buddy_stats(session: AsyncSession) -> dict[str, int]:
     )
     total = await session.scalar(select(func.count()).select_from(BuddyPair)) or 0
     return {"buddy_pairs_active": active, "buddy_pairs_total": total}
+
+
 async def mesbak_stats(session: AsyncSession, today: date) -> dict[str, int]:
     seven_days_ago = today - timedelta(days=6)
     thirty_days_ago = today - timedelta(days=29)
@@ -416,50 +438,75 @@ async def mesbak_stats(session: AsyncSession, today: date) -> dict[str, int]:
         .group_by(MesbakEntry.user_id, MesbakEntry.day)
         .subquery()
     )
-    enabled_members = await session.scalar(
-        select(func.count()).select_from(MesbakProfile).where(MesbakProfile.enabled.is_(True))
-    ) or 0
-    active_7d = await session.scalar(
-        select(func.count(func.distinct(MesbakEntry.user_id)))
-        .join(MesbakProfile, MesbakProfile.user_id == MesbakEntry.user_id)
-        .where(
-            MesbakProfile.enabled.is_(True),
-            MesbakEntry.day.between(seven_days_ago, today),
+    enabled_members = (
+        await session.scalar(
+            select(func.count()).select_from(MesbakProfile).where(MesbakProfile.enabled.is_(True))
         )
-    ) or 0
-    active_30d = await session.scalar(
-        select(func.count(func.distinct(MesbakEntry.user_id)))
-        .join(MesbakProfile, MesbakProfile.user_id == MesbakEntry.user_id)
-        .where(
-            MesbakProfile.enabled.is_(True),
-            MesbakEntry.day.between(thirty_days_ago, today),
+        or 0
+    )
+    active_7d = (
+        await session.scalar(
+            select(func.count(func.distinct(MesbakEntry.user_id)))
+            .join(MesbakProfile, MesbakProfile.user_id == MesbakEntry.user_id)
+            .where(
+                MesbakProfile.enabled.is_(True),
+                MesbakEntry.day.between(seven_days_ago, today),
+            )
         )
-    ) or 0
-    active_days_7d = await session.scalar(
-        select(func.count()).select_from(daily).where(daily.c.day.between(seven_days_ago, today))
-    ) or 0
-    completed_days_7d = await session.scalar(
-        select(func.count())
-        .select_from(daily)
-        .where(
-            daily.c.day.between(seven_days_ago, today),
-            daily.c.done >= daily.c.goal,
+        or 0
+    )
+    active_30d = (
+        await session.scalar(
+            select(func.count(func.distinct(MesbakEntry.user_id)))
+            .join(MesbakProfile, MesbakProfile.user_id == MesbakEntry.user_id)
+            .where(
+                MesbakProfile.enabled.is_(True),
+                MesbakEntry.day.between(thirty_days_ago, today),
+            )
         )
-    ) or 0
-    active_pairs = await session.scalar(
-        select(func.count()).select_from(MesbakBuddyPair).where(
-            MesbakBuddyPair.status == "active"
+        or 0
+    )
+    active_days_7d = (
+        await session.scalar(
+            select(func.count())
+            .select_from(daily)
+            .where(daily.c.day.between(seven_days_ago, today))
         )
-    ) or 0
-    anonymous_pairs = await session.scalar(
-        select(func.count()).select_from(MesbakBuddyPair).where(
-            MesbakBuddyPair.status == "active",
-            MesbakBuddyPair.pair_type == "random",
+        or 0
+    )
+    completed_days_7d = (
+        await session.scalar(
+            select(func.count())
+            .select_from(daily)
+            .where(
+                daily.c.day.between(seven_days_ago, today),
+                daily.c.done >= daily.c.goal,
+            )
         )
-    ) or 0
-    anonymous_waiting = await session.scalar(
-        select(func.count()).select_from(MesbakBuddyQueue)
-    ) or 0
+        or 0
+    )
+    active_pairs = (
+        await session.scalar(
+            select(func.count())
+            .select_from(MesbakBuddyPair)
+            .where(MesbakBuddyPair.status == "active")
+        )
+        or 0
+    )
+    anonymous_pairs = (
+        await session.scalar(
+            select(func.count())
+            .select_from(MesbakBuddyPair)
+            .where(
+                MesbakBuddyPair.status == "active",
+                MesbakBuddyPair.pair_type == "random",
+            )
+        )
+        or 0
+    )
+    anonymous_waiting = (
+        await session.scalar(select(func.count()).select_from(MesbakBuddyQueue)) or 0
+    )
     return {
         "mesbak_members": enabled_members,
         "mesbak_active_7d": active_7d,

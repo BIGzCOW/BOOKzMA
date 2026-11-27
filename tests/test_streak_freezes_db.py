@@ -47,9 +47,9 @@ def test_freeze_reward_and_use_are_persisted_and_idempotent():
                 await activity.record_interaction(session, user_id, today)
                 await activity.record_interaction(session, user_id, today)
                 activity_rows = await session.scalar(
-                    select(func.count()).select_from(ActivityDay).where(
-                        ActivityDay.user_id == user_id, ActivityDay.day == today
-                    )
+                    select(func.count())
+                    .select_from(ActivityDay)
+                    .where(ActivityDay.user_id == user_id, ActivityDay.day == today)
                 )
                 assert activity_rows == 1
                 for offset in range(6, -1, -1):
@@ -92,17 +92,26 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
                         MesbakProfile(user_id=user_ids[1], enabled=False),
                         MesbakProfile(user_id=user_ids[2], enabled=True),
                         StreakFreeze(
-                            user_id=user_ids[0], habit="reading", kind="earned",
-                            quantity=1, day=reading_day,
+                            user_id=user_ids[0],
+                            habit="reading",
+                            kind="earned",
+                            quantity=1,
+                            day=reading_day,
                         ),
                         StreakFreeze(
-                            user_id=user_ids[0], habit="reading", kind="earned",
-                            quantity=1, day=reading_day + timedelta(days=1),
+                            user_id=user_ids[0],
+                            habit="reading",
+                            kind="earned",
+                            quantity=1,
+                            day=reading_day + timedelta(days=1),
                         ),
                         *[
                             StreakFreeze(
-                                user_id=user_ids[1], habit="reading", kind="earned",
-                                quantity=1, day=reading_day + timedelta(days=offset),
+                                user_id=user_ids[1],
+                                habit="reading",
+                                kind="earned",
+                                quantity=1,
+                                day=reading_day + timedelta(days=offset),
                             )
                             for offset in range(3)
                         ],
@@ -110,9 +119,7 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
                 )
 
             async with session_pool.begin() as session:
-                reading_preview = await freeze_gifts.create_preview(
-                    session, admin_id, "reading", 2
-                )
+                reading_preview = await freeze_gifts.create_preview(session, admin_id, "reading", 2)
                 reading_operation_id = reading_preview.operation_id
                 operation_ids.append(reading_operation_id)
                 snapshot_result = await session.execute(
@@ -121,9 +128,7 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
                         FreezeGiftRecipient.preview_units,
                     ).where(FreezeGiftRecipient.operation_id == reading_operation_id)
                 )
-                snapshot = {
-                    user_id: units for user_id, units in snapshot_result.all()
-                }
+                snapshot = {user_id: units for user_id, units in snapshot_result.all()}
                 assert snapshot[user_ids[0]] == 1
                 assert snapshot[user_ids[1]] == 0
                 assert snapshot[user_ids[2]] == 2
@@ -140,9 +145,9 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
                 assert await streak_freezes.balance(session, user_ids[1]) == 3
                 assert await streak_freezes.balance(session, user_ids[2]) == 2
                 gifted_count = await session.scalar(
-                    select(func.count()).select_from(StreakFreeze).where(
-                        StreakFreeze.operation_id == reading_operation_id
-                    )
+                    select(func.count())
+                    .select_from(StreakFreeze)
+                    .where(StreakFreeze.operation_id == reading_operation_id)
                 )
 
             async with session_pool.begin() as session:
@@ -153,27 +158,31 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
                     datetime.now(timezone.utc),
                 )
                 assert repeated is not None and repeated.status == "completed"
-                assert await session.scalar(
-                    select(func.count()).select_from(StreakFreeze).where(
-                        StreakFreeze.operation_id == reading_operation_id
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(StreakFreeze)
+                        .where(StreakFreeze.operation_id == reading_operation_id)
                     )
-                ) == gifted_count
+                    == gifted_count
+                )
 
             async with session_pool.begin() as session:
-                mesbak_preview = await freeze_gifts.create_preview(
-                    session, admin_id, "mesbak", 1
-                )
+                mesbak_preview = await freeze_gifts.create_preview(session, admin_id, "mesbak", 1)
                 mesbak_operation_id = mesbak_preview.operation_id
                 operation_ids.append(mesbak_operation_id)
-                assert await session.get(
-                    FreezeGiftRecipient, (mesbak_operation_id, user_ids[0])
-                ) is not None
-                assert await session.get(
-                    FreezeGiftRecipient, (mesbak_operation_id, user_ids[2])
-                ) is not None
-                assert await session.get(
-                    FreezeGiftRecipient, (mesbak_operation_id, user_ids[1])
-                ) is None
+                assert (
+                    await session.get(FreezeGiftRecipient, (mesbak_operation_id, user_ids[0]))
+                    is not None
+                )
+                assert (
+                    await session.get(FreezeGiftRecipient, (mesbak_operation_id, user_ids[2]))
+                    is not None
+                )
+                assert (
+                    await session.get(FreezeGiftRecipient, (mesbak_operation_id, user_ids[1]))
+                    is None
+                )
 
             async with session_pool.begin() as session:
                 mesbak_result = await freeze_gifts.confirm(
@@ -183,21 +192,13 @@ def test_freeze_balances_are_separate_and_admin_gifts_are_capped_and_idempotent(
                     datetime.now(timezone.utc),
                 )
                 assert mesbak_result is not None and mesbak_result.status == "completed"
-                assert await streak_freezes.balance(
-                    session, user_ids[0], habit="mesbak"
-                ) == 1
-                assert await streak_freezes.balance(
-                    session, user_ids[1], habit="mesbak"
-                ) == 0
-                assert await streak_freezes.balance(
-                    session, user_ids[2], habit="mesbak"
-                ) == 1
+                assert await streak_freezes.balance(session, user_ids[0], habit="mesbak") == 1
+                assert await streak_freezes.balance(session, user_ids[1], habit="mesbak") == 0
+                assert await streak_freezes.balance(session, user_ids[2], habit="mesbak") == 1
         finally:
             async with session_pool.begin() as session:
                 await session.execute(
-                    delete(FreezeGiftOperation).where(
-                        FreezeGiftOperation.id.in_(operation_ids)
-                    )
+                    delete(FreezeGiftOperation).where(FreezeGiftOperation.id.in_(operation_ids))
                 )
                 await session.execute(delete(User).where(User.id.in_(user_ids)))
             await engine.dispose()
@@ -222,9 +223,7 @@ def test_mesbak_gift_rechecks_cohort_and_operation_owner_before_crediting():
                 )
 
             async with session_pool.begin() as session:
-                preview = await freeze_gifts.create_preview(
-                    session, admin_id, "mesbak", 1
-                )
+                preview = await freeze_gifts.create_preview(session, admin_id, "mesbak", 1)
                 operation_id = preview.operation_id
                 assert preview.recipients == 2
 
@@ -243,30 +242,27 @@ def test_mesbak_gift_rechecks_cohort_and_operation_owner_before_crediting():
                     session, admin_id, operation_id, datetime.now(timezone.utc)
                 )
                 assert changed is not None and changed.status == "changed"
-                assert await session.scalar(
-                    select(func.count()).select_from(StreakFreeze).where(
-                        StreakFreeze.operation_id == operation_id
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(StreakFreeze)
+                        .where(StreakFreeze.operation_id == operation_id)
                     )
-                ) == 0
+                    == 0
+                )
 
             async with session_pool.begin() as session:
                 confirmed = await freeze_gifts.confirm(
                     session, admin_id, operation_id, datetime.now(timezone.utc)
                 )
                 assert confirmed is not None and confirmed.status == "completed"
-                assert await streak_freezes.balance(
-                    session, user_ids[0], habit="mesbak"
-                ) == 0
-                assert await streak_freezes.balance(
-                    session, user_ids[1], habit="mesbak"
-                ) == 1
+                assert await streak_freezes.balance(session, user_ids[0], habit="mesbak") == 0
+                assert await streak_freezes.balance(session, user_ids[1], habit="mesbak") == 1
         finally:
             async with session_pool.begin() as session:
                 if operation_id is not None:
                     await session.execute(
-                        delete(FreezeGiftOperation).where(
-                            FreezeGiftOperation.id == operation_id
-                        )
+                        delete(FreezeGiftOperation).where(FreezeGiftOperation.id == operation_id)
                     )
                 await session.execute(delete(User).where(User.id.in_(user_ids)))
             await engine.dispose()
@@ -286,14 +282,10 @@ def test_mesbak_freeze_does_not_create_activity_reading_or_challenge_progress():
             async with session_pool.begin() as session:
                 session.add(User(id=user_id))
                 await session.flush()
-                session.add(
-                    MesbakProfile(user_id=user_id, enabled=True, daily_goal=1)
-                )
+                session.add(MesbakProfile(user_id=user_id, enabled=True, daily_goal=1))
                 session.add_all(
                     [
-                        MesbakEntry(
-                            user_id=user_id, day=two_days_ago, slot=1, daily_goal=1
-                        ),
+                        MesbakEntry(user_id=user_id, day=two_days_ago, slot=1, daily_goal=1),
                         MesbakEntry(user_id=user_id, day=today, slot=1, daily_goal=1),
                         MesbakChallenge(
                             user_id=user_id,
@@ -325,21 +317,30 @@ def test_mesbak_freeze_does_not_create_activity_reading_or_challenge_progress():
                 )
                 assert challenge is not None and challenge.status == "active"
                 assert progress_after == progress_before
-                assert await session.scalar(
-                    select(func.count()).select_from(ActivityDay).where(
-                        ActivityDay.user_id == user_id
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(ActivityDay)
+                        .where(ActivityDay.user_id == user_id)
                     )
-                ) == 0
-                assert await session.scalar(
-                    select(func.count()).select_from(ReadingLog).where(
-                        ReadingLog.user_id == user_id
+                    == 0
+                )
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(ReadingLog)
+                        .where(ReadingLog.user_id == user_id)
                     )
-                ) == 0
-                assert await session.scalar(
-                    select(func.count()).select_from(MesbakEntry).where(
-                        MesbakEntry.user_id == user_id, MesbakEntry.day == yesterday
+                    == 0
+                )
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(MesbakEntry)
+                        .where(MesbakEntry.user_id == user_id, MesbakEntry.day == yesterday)
                     )
-                ) == 0
+                    == 0
+                )
         finally:
             async with session_pool.begin() as session:
                 await session.execute(delete(User).where(User.id == user_id))

@@ -294,7 +294,7 @@ def test_run_restore_ignores_only_unsupported_transaction_timeout(monkeypatch, t
     name = "bookzma-2026-10-25-033000.dump"
     (backup_dir / name).write_bytes(b"PGDMP-fake")
     stderr = (
-        b'pg_restore: error: could not execute query: ERROR:  unrecognized configuration '
+        b"pg_restore: error: could not execute query: ERROR:  unrecognized configuration "
         b'parameter "transaction_timeout"\n'
         b"Command was: SET transaction_timeout = 0;\n"
         b"pg_restore: warning: errors ignored on restore: 1\n"

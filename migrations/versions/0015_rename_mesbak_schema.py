@@ -3,6 +3,7 @@
 Revision ID: 0015
 Revises: 0014
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -57,9 +58,7 @@ def _rename_legacy_tables() -> None:
 
 def upgrade() -> None:
     op.drop_constraint("ck_broadcast_campaign_audience", "broadcast_campaigns", type_="check")
-    op.execute(
-        "UPDATE broadcast_campaigns SET audience = 'mesbak' WHERE audience = 'miswak'"
-    )
+    op.execute("UPDATE broadcast_campaigns SET audience = 'mesbak' WHERE audience = 'miswak'")
     op.create_check_constraint(
         "ck_broadcast_campaign_audience",
         "broadcast_campaigns",
@@ -78,9 +77,7 @@ def upgrade() -> None:
             )
         }
         if old_name in names and new_name not in names:
-            op.execute(
-                f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{old_name}" TO "{new_name}"'
-            )
+            op.execute(f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{old_name}" TO "{new_name}"')
     for old_name, new_name in _INDEXES:
         index_names = {
             item["name"]
@@ -93,9 +90,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_constraint("ck_broadcast_campaign_audience", "broadcast_campaigns", type_="check")
-    op.execute(
-        "UPDATE broadcast_campaigns SET audience = 'miswak' WHERE audience = 'mesbak'"
-    )
+    op.execute("UPDATE broadcast_campaigns SET audience = 'miswak' WHERE audience = 'mesbak'")
     op.create_check_constraint(
         "ck_broadcast_campaign_audience",
         "broadcast_campaigns",
@@ -120,9 +115,7 @@ def downgrade() -> None:
             )
         }
         if new_name in names and old_name not in names:
-            op.execute(
-                f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{new_name}" TO "{old_name}"'
-            )
+            op.execute(f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{new_name}" TO "{old_name}"')
 
     table_names = set(sa.inspect(op.get_bind()).get_table_names())
     for suffix in reversed(_TABLES):

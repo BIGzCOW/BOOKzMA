@@ -17,9 +17,8 @@ class BookFlowNavigationMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        if (
-            data.get("raw_state") in self.form_states
-            and not data["handler"].flags.get("book_form_input")
+        if data.get("raw_state") in self.form_states and not data["handler"].flags.get(
+            "book_form_input"
         ):
             await data["state"].clear()
         return await handler(event, data)

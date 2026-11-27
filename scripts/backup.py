@@ -45,29 +45,23 @@ def rotate(directory: Path, keep: int) -> list[str]:
         reverse=True,
     )
     deleted = []
-    for name in names[max(keep, 0):]:
+    for name in names[max(keep, 0) :]:
         (directory / name).unlink(missing_ok=True)
         deleted.append(name)
     return deleted
 
 
 def rclone_upload(path: Path, remote: str) -> None:
-    subprocess.run(
-        ["rclone", "copy", str(path), remote], check=True, capture_output=True
-    )
+    subprocess.run(["rclone", "copy", str(path), remote], check=True, capture_output=True)
 
 
 def rclone_rotate(remote: str, keep: int) -> list[str]:
-    result = subprocess.run(
-        ["rclone", "lsf", remote], check=True, capture_output=True, text=True
-    )
+    result = subprocess.run(["rclone", "lsf", remote], check=True, capture_output=True, text=True)
     names = sorted(
-        line.strip()
-        for line in result.stdout.splitlines()
-        if NAME_RE.fullmatch(line.strip())
+        line.strip() for line in result.stdout.splitlines() if NAME_RE.fullmatch(line.strip())
     )
     deleted = []
-    for name in names[max(keep, 0):]:
+    for name in names[max(keep, 0) :]:
         subprocess.run(
             ["rclone", "deletefile", f"{remote.rstrip('/')}/{name}"],
             check=True,
@@ -100,8 +94,17 @@ def main() -> None:
     name = "bookzma-" + datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S") + ".dump"
     path = dest / name
     cmd = [
-        "docker", "compose", f"--project-directory={project}", "exec", "-T",
-        "db", "pg_dump", "-U", DB_USER, "-Fc", DB_NAME,
+        "docker",
+        "compose",
+        f"--project-directory={project}",
+        "exec",
+        "-T",
+        "db",
+        "pg_dump",
+        "-U",
+        DB_USER,
+        "-Fc",
+        DB_NAME,
     ]
     with path.open("wb") as out:
         proc = subprocess.run(cmd, stdout=out, stderr=subprocess.PIPE)

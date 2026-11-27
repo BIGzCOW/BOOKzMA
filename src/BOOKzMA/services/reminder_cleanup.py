@@ -51,15 +51,11 @@ async def process_pending(
 ) -> int:
     now = now or datetime.now(timezone.utc)
     await reminders.purge_expired_messages(session, now - MESSAGE_RETENTION)
-    deliveries = await reminders.list_cleanup_pending(
-        session, now, user_id=user_id, limit=limit
-    )
+    deliveries = await reminders.list_cleanup_pending(session, now, user_id=user_id, limit=limit)
     deleted = 0
     for delivery in deliveries:
         try:
-            await bot.delete_message(
-                chat_id=delivery.user_id, message_id=delivery.message_id
-            )
+            await bot.delete_message(chat_id=delivery.user_id, message_id=delivery.message_id)
         except TelegramRetryAfter as error:
             await reminders.defer_message_cleanup(
                 session,
@@ -67,9 +63,7 @@ async def process_pending(
                 now + timedelta(seconds=error.retry_after),
             )
         except (TelegramNetworkError, TelegramServerError):
-            await reminders.defer_message_cleanup(
-                session, delivery.id, now + CLEANUP_RETRY
-            )
+            await reminders.defer_message_cleanup(session, delivery.id, now + CLEANUP_RETRY)
         except (TelegramBadRequest, TelegramForbiddenError):
             await reminders.mark_message_deleted(session, delivery.id)
         except TelegramAPIError:

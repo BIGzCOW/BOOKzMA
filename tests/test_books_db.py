@@ -42,26 +42,20 @@ def test_multiple_page_logs_same_day_are_idempotent_per_message_and_mark_reading
             async with pool.begin() as session:
                 session.add(User(id=user_id, timezone="Asia/Tehran"))
             async with pool.begin() as session:
-                status, book = await books_repo.add(
-                    session, user_id, "کتاب آزمایشی", None, 100
-                )
+                status, book = await books_repo.add(session, user_id, "کتاب آزمایشی", None, 100)
                 assert status == "ok" and book is not None
                 book_id = book.id
 
             async with pool.begin() as session:
                 user = await session.get(User, user_id)
-                first = await books_repo.log_pages(
-                    session, user_id, book_id, reading_day, 10, 101
-                )
+                first = await books_repo.log_pages(session, user_id, book_id, reading_day, 10, 101)
                 assert first.status == "ok"
                 registration = await register_reading(session, user, reading_day)
                 assert registration.created is True
 
             async with pool.begin() as session:
                 user = await session.get(User, user_id)
-                second = await books_repo.log_pages(
-                    session, user_id, book_id, reading_day, 10, 102
-                )
+                second = await books_repo.log_pages(session, user_id, book_id, reading_day, 10, 102)
                 assert second.status == "ok"
                 registration = await register_reading(session, user, reading_day)
                 assert registration.created is False
@@ -73,17 +67,25 @@ def test_multiple_page_logs_same_day_are_idempotent_per_message_and_mark_reading
                 assert duplicate.progress.pages_read == 20
 
             async with pool() as session:
-                assert await session.scalar(
-                    select(func.count()).select_from(PageLog).where(
-                        PageLog.user_book_id == book_id
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(PageLog)
+                        .where(PageLog.user_book_id == book_id)
                     )
-                ) == 2
-                assert await session.scalar(
-                    select(func.count()).select_from(ReadingLog).where(
-                        ReadingLog.user_id == user_id,
-                        ReadingLog.day == reading_day,
+                    == 2
+                )
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(ReadingLog)
+                        .where(
+                            ReadingLog.user_id == user_id,
+                            ReadingLog.day == reading_day,
+                        )
                     )
-                ) == 1
+                    == 1
+                )
         finally:
             async with pool.begin() as session:
                 await session.execute(delete(User).where(User.id == user_id))
@@ -102,17 +104,14 @@ def test_book_notes_are_owner_scoped_editable_and_clearable():
             async with pool.begin() as session:
                 session.add_all([User(id=owner_id), User(id=other_id)])
             async with pool.begin() as session:
-                status, book = await books_repo.add(
-                    session, owner_id, "یادداشت خصوصی", None, 100
-                )
+                status, book = await books_repo.add(session, owner_id, "یادداشت خصوصی", None, 100)
                 assert status == "ok" and book is not None
                 book_id = book.id
 
             async with pool.begin() as session:
                 assert await books_repo.set_note(session, owner_id, book_id, "یادداشت من")
                 assert (
-                    await books_repo.set_note(session, other_id, book_id, "دسترسی بیگانه")
-                    is False
+                    await books_repo.set_note(session, other_id, book_id, "دسترسی بیگانه") is False
                 )
 
             async with pool.begin() as session:
@@ -126,9 +125,12 @@ def test_book_notes_are_owner_scoped_editable_and_clearable():
 
             async with pool.begin() as session:
                 await session.execute(delete(User).where(User.id == owner_id))
-                assert await session.scalar(
-                    select(func.count()).select_from(UserBook).where(UserBook.id == book_id)
-                ) == 0
+                assert (
+                    await session.scalar(
+                        select(func.count()).select_from(UserBook).where(UserBook.id == book_id)
+                    )
+                    == 0
+                )
         finally:
             async with pool.begin() as session:
                 await session.execute(delete(User).where(User.id.in_([owner_id, other_id])))
@@ -235,27 +237,19 @@ def test_progress_finishing_ownership_archive_and_admin_kpis():
                 await session.flush()
                 session.add_all(
                     [
-                        SupportEvent(
-                            ticket_id=ticket.id, actor_id=owner_id, kind="user_message"
-                        ),
-                        SupportEvent(
-                            ticket_id=ticket.id, actor_id=other_id, kind="admin_reply"
-                        ),
+                        SupportEvent(ticket_id=ticket.id, actor_id=owner_id, kind="user_message"),
+                        SupportEvent(ticket_id=ticket.id, actor_id=other_id, kind="admin_reply"),
                         SupportBlock(user_id=other_id, admin_id=owner_id),
                     ]
                 )
 
             async with pool.begin() as session:
-                first = await books_repo.log_pages(
-                    session, owner_id, book_id, reading_day, 15, 201
-                )
+                first = await books_repo.log_pages(session, owner_id, book_id, reading_day, 15, 201)
                 assert first.status == "ok"
                 summary = await books_repo.shelf_summary(session, owner_id)
                 assert summary.reading_count == 1
                 assert summary.reading_titles == ("کوتاه",)
-                over = await books_repo.log_pages(
-                    session, owner_id, book_id, reading_day, 6, 202
-                )
+                over = await books_repo.log_pages(session, owner_id, book_id, reading_day, 6, 202)
                 assert over.status == "over"
                 assert await books_repo.get_progress(session, other_id, book_id) is None
                 assert await books_repo.archive(session, other_id, book_id) is False
@@ -273,9 +267,7 @@ def test_progress_finishing_ownership_archive_and_admin_kpis():
                 assert summary.reading_count == 0
                 assert await books_repo.log_pages(
                     session, owner_id, book_id, reading_day, 1, 204
-                ) == books_repo.PageLogResult(
-                    "finished", finished.progress
-                )
+                ) == books_repo.PageLogResult("finished", finished.progress)
 
             async with pool() as session:
                 stats = await analytics.dashboard(session, reading_day)
@@ -384,9 +376,7 @@ def test_catalog_book_can_be_added_before_setting_total_pages():
                 assert missing_count.status == "pages_missing"
 
             async with pool.begin() as session:
-                result, progress = await books_repo.set_total_pages(
-                    session, user_id, book_id, 100
-                )
+                result, progress = await books_repo.set_total_pages(session, user_id, book_id, 100)
                 assert result == "ok"
                 assert progress is not None and progress.book.total_pages == 100
                 logged = await books_repo.log_pages(

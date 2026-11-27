@@ -128,9 +128,7 @@ async def on_invite(callback: CallbackQuery, session: AsyncSession, bot: Bot) ->
 
     payload, token_hash = create_invite_token()
     now = datetime.now(timezone.utc)
-    created = await buddy_repo.create_invite(
-        session, user.id, token_hash, now + timedelta(days=7)
-    )
+    created = await buddy_repo.create_invite(session, user.id, token_hash, now + timedelta(days=7))
     await session.commit()
     if not created:
         await callback.answer(texts.BUDDY_ALREADY_QUEUED, show_alert=True)
@@ -227,9 +225,7 @@ async def on_leave(callback: CallbackQuery, session: AsyncSession) -> None:
 
 
 @router.callback_query(F.data.startswith("buddy:nudge:"))
-async def on_nudge(
-    callback: CallbackQuery, session: AsyncSession, bot: Bot
-) -> None:
+async def on_nudge(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     pair_id = _callback_pair_id(callback.data, "buddy:nudge:")
     if pair_id is None:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
@@ -260,9 +256,7 @@ async def on_nudge(
 
 
 @router.callback_query(F.data.startswith("buddy:end:"))
-async def on_end(
-    callback: CallbackQuery, session: AsyncSession, bot: Bot
-) -> None:
+async def on_end(callback: CallbackQuery, session: AsyncSession, bot: Bot) -> None:
     pair_id = _callback_pair_id(callback.data, "buddy:end:")
     if pair_id is None:
         await callback.answer(texts.INVALID_ACTION, show_alert=True)
