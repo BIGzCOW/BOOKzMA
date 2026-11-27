@@ -31,6 +31,8 @@ class CatalogIndexOperation:
     operation: str
     document: dict[str, object] | None
     revision: int
+    attempts: int
+    last_error: str | None
 
 
 async def search(
@@ -209,7 +211,15 @@ async def pending_index_operations(
         .limit(limit)
     )
     return [
-        CatalogIndexOperation(row.id, row.message_id, row.operation, row.document, row.revision)
+        CatalogIndexOperation(
+            row.id,
+            row.message_id,
+            row.operation,
+            row.document,
+            row.revision,
+            row.attempts,
+            row.last_error,
+        )
         for row in result.all()
     ]
 
