@@ -672,63 +672,95 @@ def admin_dashboard(stats: dict[str, int], series: list[tuple[object, int]]) -> 
     for day, count in series:
         width = round(count / maximum * 10) if maximum else 0
         chart.append(f"{day:%m/%d} {'█' * width or '·'} {fa(count)}")
-    return (
-        "📊 <b>گزارش بات (UTC)</b>\n\n"
-        f"👤 کاربران ثبت‌شده: {fa(stats['users'])}\n"
-        f"🚀 شروع‌کننده‌ها: {fa(stats['starters'])}\n"
-        f"🎓 آنبردینگ کامل‌شده: {fa(stats['onboarded'])}\n"
-        f"🆕 شروع در ۷/۳۰ روز: {fa(stats['starts_7d'])} / {fa(stats['starts_30d'])}\n"
-        f"🟢 فعال روزانه/هفتگی/ماهانه: "
-        f"{fa(stats['dau'])} / {fa(stats['wau'])} / {fa(stats['mau'])}\n"
-        f"⚪ شروع‌کنندهٔ غیرفعال در ۳۰ روز: {fa(stats['inactive_30d'])}\n"
-        f"📚 مطالعه‌کننده در ۷/۳۰ روز: "
-        f"{fa(stats['readers_7d'])} / {fa(stats['readers_30d'])}\n"
-        f"📖 روزهای ثبت مطالعه در ۷/۳۰ روز: "
-        f"{fa(stats['reading_days_7d'])} / {fa(stats['reading_days_30d'])}\n"
-        f"📚 کتاب‌های فعال/تمام‌شده: {fa(stats['active_books'])} / "
-        f"{fa(stats['finished_books'])}\n"
-        f"🗄 کتاب‌های آرشیوشده: {fa(stats['archived_books'])} · "
-        f"افزوده/آرشیو/بازگردانی در ۷ روز: {fa(stats['books_added_7d'])} / "
-        f"{fa(stats['books_archived_7d'])} / {fa(stats['books_restored_7d'])}\n"
-        f"🔎 کاتالوگ · جستجو ۷/۳۰ روز: {fa(stats['catalog_searches_7d'])} / "
-        f"{fa(stats['catalog_searches_30d'])} · صفحه/نتیجه/بی‌نتیجهٔ ۷روزه: "
-        f"{fa(stats['catalog_result_pages_7d'])} / {fa(stats['catalog_results_shown_7d'])} / "
-        f"{fa(stats['catalog_empty_searches_7d'])} · افزوده به کتابخانه: "
-        f"{fa(stats['catalog_books_added_7d'])}\n"
-        f"📤 ارسال فایل کاتالوگ ۷ روزه · موفق/ناموفق: "
+    lines = [
+        "📊 <b>گزارش بات (UTC)</b>\n",
+        "━━━ <b>کاربران</b> ━━━",
+        f"👤 ثبت‌شده: {fa(stats['users'])}",
+        f"🚀 شروع‌کننده: {fa(stats['starters'])}",
+        f"🎓 آنبردینگ کامل: {fa(stats['onboarded'])}",
+        f"🆕 شروع ۷/۳۰ روزه: {fa(stats['starts_7d'])} / "
+        f"{fa(stats['starts_30d'])}",
+        f"⚪ غیرفعال ۳۰ روزه: {fa(stats['inactive_30d'])}",
+        "",
+        "━━━ <b>فعالیت</b> ━━━",
+        f"🟢 روزانه/هفتگی/ماهانه: {fa(stats['dau'])} / "
+        f"{fa(stats['wau'])} / {fa(stats['mau'])}",
+        f"📚 مطالعه‌کننده ۷/۳۰ روزه: {fa(stats['readers_7d'])} / "
+        f"{fa(stats['readers_30d'])}",
+        f"📖 روز ثبت مطالعه ۷/۳۰ روزه: {fa(stats['reading_days_7d'])} / "
+        f"{fa(stats['reading_days_30d'])}",
+        f"📄 نشست/صفحه مطالعه ۷ روزه: {fa(stats['page_sessions_7d'])} / "
+        f"{fa(stats['pages_7d'])}",
+        f"📑 تنظیم تعداد صفحات ۷ روزه: {fa(stats['page_counts_set_7d'])}",
+        "",
+        "━━━ <b>کتابخانه</b> ━━━",
+        f"📚 فعال/تمام‌شده: {fa(stats['active_books'])} / "
+        f"{fa(stats['finished_books'])}",
+        f"🗄 آرشیوشده: {fa(stats['archived_books'])}",
+        f"➕ افزوده ۷ روزه: {fa(stats['books_added_7d'])}",
+        f"🗃 آرشیو/بازگردانی ۷ روزه: {fa(stats['books_archived_7d'])} / "
+        f"{fa(stats['books_restored_7d'])}",
+        "",
+        "━━━ <b>جست‌وجوی کاتالوگ</b> ━━━",
+        f"🔎 خصوصی ۷/۳۰ روزه: {fa(stats['catalog_searches_7d'])} / "
+        f"{fa(stats['catalog_searches_30d'])}",
+        f"📄 صفحه/نتیجه/بی‌نتیجهٔ ۷روزه: "
+        f"{fa(stats['catalog_result_pages_7d'])} / "
+        f"{fa(stats['catalog_results_shown_7d'])} / "
+        f"{fa(stats['catalog_empty_searches_7d'])}",
+        f"📚 افزوده به کتابخانه: {fa(stats['catalog_books_added_7d'])}",
+        "",
+        "━━━ <b>جست‌وجوی این‌لاین</b> ━━━",
+        f"🔍 ۷/۳۰ روزه: {fa(stats['catalog_inline_searches_7d'])} / "
+        f"{fa(stats['catalog_inline_searches_30d'])}",
+        f"📊 نتیجه/بی‌نتیجهٔ ۷روزه: "
+        f"{fa(stats['catalog_inline_results_shown_7d'])} / "
+        f"{fa(stats['catalog_inline_empty_searches_7d'])}",
+        f"📤 فایل ارسال شده ۷ روزه: "
         f"{fa(stats['catalog_downloads_succeeded_7d'])} / "
-        f"{fa(stats['catalog_downloads_failed_7d'])}\n"
-        f"📄 نشست/صفحهٔ مطالعه در ۷ روز: {fa(stats['page_sessions_7d'])} / "
-        f"{fa(stats['pages_7d'])}\n"
-        f"📑 تنظیم تعداد صفحات در ۷ روز: {fa(stats['page_counts_set_7d'])}\n"
-        f"💬 پشتیبانی · تیکت باز/جدید: {fa(stats['support_tickets_open'])} / "
-        f"{fa(stats['support_tickets_7d'])} · پیام/پاسخ ۷روزه: "
-        f"{fa(stats['support_messages_7d'])} / {fa(stats['support_replies_7d'])} · "
-        f"مسدود: {fa(stats['support_blocked_users'])}\n"
+        f"ناموفق: {fa(stats['catalog_downloads_failed_7d'])}",
+        "",
+        "━━━ <b>پشتیبانی</b> ━━━",
+        f"💬 تیکت باز/جدید: {fa(stats['support_tickets_open'])} / "
+        f"{fa(stats['support_tickets_7d'])}",
+        f"💬 پیام/پاسخ ۷روزه: {fa(stats['support_messages_7d'])} / "
+        f"{fa(stats['support_replies_7d'])}",
+        f"🚫 مسدود: {fa(stats['support_blocked_users'])}",
+        "",
+        "━━━ <b>استریک و دوباره‌بازگشت</b> ━━━",
         f"🔁 بازگشت D1/D7/D30: {fa(stats['retention_d1'])}% / "
-        f"{fa(stats['retention_d7'])}% / {fa(stats['retention_d30'])}%\n"
-        f"🔥 دارای استریک: {fa(stats['users_with_streak'])} · "
-        f"بیشترین جاری/رکورد: {fa(stats['max_current_streak'])} / "
-        f"{fa(stats['max_record_streak'])} روز\n"
-        f"⏰ یادآورها: {fa(stats['reminders'])}\n"
-        f"🪥 مسباک · عضو فعال: {fa(stats['mesbak_members'])} · فعال ۷/۳۰ روز: "
-        f"{fa(stats['mesbak_active_7d'])}/{fa(stats['mesbak_active_30d'])} · "
-        f"تکمیل هدف ۷روزه: {fa(stats['mesbak_completed_days_7d'])} روز، "
-        f"{fa(stats['mesbak_completion_rate_7d'])}% از روزهای دارای ثبت\n"
-        f"🤝 رفیق مسباک · جفت فعال: {fa(stats['mesbak_buddy_pairs'])} "
-        f"(ناشناس: {fa(stats['mesbak_random_pairs'])}) · "
-        f"منتظر در صف: {fa(stats['mesbak_random_waiting'])}\n"
-        f"🛡️ فریز مصرف‌شده · مطالعه/مسباک: {fa(stats['freezes_used'])} / "
-        f"{fa(stats['mesbak_freezes_used'])}\n"
-        f"⚠️ هشدار «استریک در خطر» در ۷ روز: {fa(stats['streak_alerts_7d'])}\n"
-        f"🔁 کاربران با پاداش comeback: {fa(stats['comeback_users'])}\n"
-        f"🎖 نشان‌ها: {fa(stats['badges_total'])} اهدا به {fa(stats['badge_holders'])} نفر\n"
-        f"🤝 جفت‌های رفیق مطالعه: {fa(stats['buddy_pairs_active'])} فعال · "
-        f"{fa(stats['buddy_pairs_total'])} کل\n"
-        f"🗑 حساب حذف‌شده: {fa(stats['accounts_deleted'])} · ۷ روز اخیر: "
-        f"{fa(stats['deletions_7d'])}\n\n"
-        "<b>فعالیت ۷ روز اخیر</b>\n" + "\n".join(chart)
-    )
+        f"{fa(stats['retention_d7'])}% / {fa(stats['retention_d30'])}%",
+        f"🔥 دارای استریک: {fa(stats['users_with_streak'])}",
+        f"🏆 جاری/رکورد: {fa(stats['max_current_streak'])} / "
+        f"{fa(stats['max_record_streak'])} روز",
+        f"⏰ یادآورها: {fa(stats['reminders'])}",
+        f"⚠️ هشدار «استریک در خطر» ۷ روزه: {fa(stats['streak_alerts_7d'])}",
+        f"🔁 کاربران با پاداش comeback: {fa(stats['comeback_users'])}",
+        "",
+        "━━━ <b>مسباک</b> ━━━",
+        f"🪥 عضو فعال: {fa(stats['mesbak_members'])}",
+        f"📊 فعال ۷/۳۰ روزه: {fa(stats['mesbak_active_7d'])} / "
+        f"{fa(stats['mesbak_active_30d'])}",
+        f"✅ تکمیل هدف ۷روزه: {fa(stats['mesbak_completed_days_7d'])} روز "
+        f"({fa(stats['mesbak_completion_rate_7d'])}%)",
+        f"🛡️ فریز مطالعه/مسباک: {fa(stats['freezes_used'])} / "
+        f"{fa(stats['mesbak_freezes_used'])}",
+        "",
+        "━━━ <b>رفیق و نشان</b> ━━━",
+        f"🤝 جفت‌های رفیق مطالعه: {fa(stats['buddy_pairs_active'])} فعال / "
+        f"{fa(stats['buddy_pairs_total'])} کل",
+        f"🤝 جفت‌های مسباک: {fa(stats['mesbak_buddy_pairs'])} فعال "
+        f"(ناشناس: {fa(stats['mesbak_random_pairs'])})",
+        f"⏳ منتظر در صف رفیق مسباک: {fa(stats['mesbak_random_waiting'])}",
+        f"🎖 نشان‌ها: {fa(stats['badges_total'])} اهدا به "
+        f"{fa(stats['badge_holders'])} نفر",
+        f"🗑 حساب حذف‌شده: {fa(stats['accounts_deleted'])} / ۷ روز اخیر: "
+        f"{fa(stats['deletions_7d'])}",
+        "",
+        "━━━ <b>فعالیت ۷ روز اخیر</b> ━━━",
+    ]
+    lines.extend(chart)
+    return "\n".join(lines)
 
 
 def reminder_push(streak: int) -> str:

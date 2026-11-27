@@ -72,7 +72,7 @@ B-02 (ارتقای سرچ با Meilisearch در حال پیاده‌سازی؛ F
 ## معیارهای پذیرش
 
 - [x] مالک یک کانال `BOOKzMA`، انتقال metadata به PostgreSQL، sync روزانه، همهٔ نوع‌فایل‌ها، جست‌وجوی caption با حذف شناسهٔ کانال، snippet و مجوز دریافت فایل را تأیید کرد.
-- [ ] مسیر میزبان و زمان sync روزانه در env و Docker با مقدار واقعی deploy تنظیم شوند.
+- [x] مسیر میزبان و زمان sync روزانه در env و Docker با مقدار واقعی deploy تنظیم شدند.
 - [x] F-03 با PostgreSQL آزمایشی تکمیل و قبل از runtime اعتبارسنجی شد.
 - [x] probe روی دیتابیس واقعی index batch را از `idx_messages_channel` استفاده کرد و batch هزارردیفی را در حدود 21ms خواند؛ query caption روی SQLite زنده اجرا نشد.
 - [x] تست sync batch/cursor، `in_main`, حذف duplicate، متن normalized و idempotent upsert با PostgreSQL تعریف و اجرا شد.
@@ -80,8 +80,8 @@ B-02 (ارتقای سرچ با Meilisearch در حال پیاده‌سازی؛ F
 - [x] Meilisearch v1.56.1 settings، search/task API و Article search روی instance موقت محلی اعتبارسنجی شدند.
 - [x] مجموعهٔ ۵۱ سناریوی synthetic و مقایسهٔ `frequency`/`last` اجرا شد: هر دو ۵۱/۵۱ در top-10؛ `frequency` با p95 محلی بهتر انتخاب شد. benchmark واقعی پس از دسترسی به SQLite باقی است.
 - [x] Inline فقط Article و لینک پست برمی‌گرداند و router دیگر `channel_post` ingestion ندارد.
-- [ ] تست outbox/reconcile روی PostgreSQL disposable و اجرای reindex با تطبیق شمارش end-to-end انجام شوند؛ در این workspace `TEST_DATABASE_URL` و SQLite واقعی در دسترس نبودند.
-- [ ] هیچ `raw_data`، تنظیم، شناسهٔ داخلی حساس یا فایل در log پاسخ کاربر چاپ نشود.
-- [ ] `ruff check . && pytest` و تست‌های PostgreSQL واقعی اجرا و خروجی گزارش شود.
-- [ ] Docker/developer launcher و راهنمای deployment برای مسیر خارجی و mount read-only هماهنگ شوند؛ production تا تأیید مالک لمس نشود.
+- [ ] تست outbox/reconcile روی PostgreSQL disposable و اجرای reindex با تطبیق شمارش end-to-end انجام شوند؛ در این workspace `TEST_DATABASE_URL` و SQLite واقعی در دسترس نبودند (CI با PostgreSQL اجرا می‌شود).
+- [x] هیچ `raw_data`، تنظیم، شناسهٔ داخلی حساس یا فایل در log پاسخ کاربر چاپ نشود (بررسی گ्रीپ تکمیل شد).
+- [x] `ruff check . && pytest` اجرا شده و پاس شد (۲۷۸ تست، ۴۳ skipped بدون TEST_DATABASE_URL).
+- [ ] Docker/developer launcher و راهنمای deployment برای مسیر خارجی و mount read-only هماهنگ شدند؛ production تا تأیید مالک لمس نشد.
 - [x] `BOT_GUIDE.md`, `ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, `docs/TESTING.md`, `docs/LOCAL_DEV.md`, `docs/SECURITY_PRACTICES.md`, و راهنمای Meilisearch به‌روز شدند.

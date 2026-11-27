@@ -412,9 +412,9 @@ async def on_catalog_inline_query(
         next_offset=next_offset,
     )
     if search_completed:
-        metrics = {"result_pages": 1, "results_shown": len(results)}
+        metrics = {"result_pages": 1, "inline_results_shown": len(results)}
         if offset == 0:
-            metrics["searches"] = 1
+            metrics["inline_searches"] = 1
             if not results:
-                metrics["empty_searches"] = 1
+                metrics["inline_empty_searches"] = 1
         await _record_catalog_usage(session, **metrics)

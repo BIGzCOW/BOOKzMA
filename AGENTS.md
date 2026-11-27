@@ -81,6 +81,14 @@ Ask before adding a dependency, changing schema or deployment configuration, cha
 
 Update [ARCHITECTURE.md](ARCHITECTURE.md) and/or [BOT_GUIDE.md](BOT_GUIDE.md) in the same change when structure, commands, callbacks, state, tables, or environment variables change. Follow [docs/DOCS_MAINTENANCE.md](docs/DOCS_MAINTENANCE.md) for other triggers. A change is incomplete while its docs contradict the code.
 
+Mandatory doc updates with every code change:
+- Handler change → update `BOT_GUIDE.md` (commands, callbacks, FSM)
+- Model/migration change → update `ARCHITECTURE.md` (Data and State)
+- New feature → update `docs/ROADMAP.md` status + spec in `docs/specs/`
+- Env var change → update `.env.sample` and `BOT_GUIDE.md` Environment table
+- API change → update `BOT_GUIDE.md` HTTP API section
+- No PR is complete without doc updates; use `docs/DOCS_MAINTENANCE.md` checklist.
+
 Bot text should be natural, clear, modern Persian: neither stiff nor AI-sounding.
 
 ## End-of-Task Report

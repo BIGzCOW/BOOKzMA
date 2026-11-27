@@ -1,4 +1,5 @@
 import asyncio
+import gzip
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,7 +25,7 @@ def make_settings(tmp_path, **overrides):
         "admin_telegram_ids": "123",
         "database_url": "postgresql+asyncpg://bookzma:pw@db:5432/bookzma",
         "backup_dir": str(tmp_path / "backups"),
-        "backup_keep_local": 1,
+        "backup_keep_local": 3,
     }
     defaults.update(overrides)
     return Settings(**defaults)
@@ -33,49 +34,46 @@ def make_settings(tmp_path, **overrides):
 def test_backup_filename_and_parse_roundtrip():
     moment = datetime(2026, 10, 25, 3, 30, 0, tzinfo=timezone.utc)
     name = backup_filename(moment)
-    assert name == "bookzma-2026-10-25-033000.dump"
+    assert name == "pgdump_2026-10-25_0330.sql.gz"
     assert parse_backup_name(name) == moment
 
 
 def test_parse_backup_name_rejects_non_backup_names():
     assert parse_backup_name("../etc/passwd") is None
     assert parse_backup_name("bookzma-2026-10-25.dump") is None
-    assert parse_backup_name("bookzma-2026-13-99-033000.dump") is None
-    assert parse_backup_name("other-2026-10-25-033000.dump") is None
-    assert parse_backup_name("bookzma-2026-10-25-033000.dump.bak") is None
+    assert parse_backup_name("pgdump_2026-13-99_0330.sql.gz") is None
+    assert parse_backup_name("other-2026-10-25_0330.sql.gz") is None
+    assert parse_backup_name("pgdump_2026-10-25_0330.sql.gz.bak") is None
 
 
 def test_parse_backup_name_rejects_traversal_and_slashes():
-    assert parse_backup_name("bookzma-2026-10-25-033000/../../x.dump") is None
+    assert parse_backup_name("pgdump_2026-10-25_0330.sql.gz/../../x.dump") is None
     assert parse_backup_name("..") is None
 
 
 def test_select_to_delete_keeps_newest_and_ignores_unknown_files():
     names = [
-        "bookzma-2026-10-20-033000.dump",
-        "bookzma-2026-10-25-033000.dump",
-        "bookzma-2026-10-23-033000.dump",
+        "pgdump_2026-10-20_0330.sql.gz",
+        "pgdump_2026-10-25_0330.sql.gz",
+        "pgdump_2026-10-23_0330.sql.gz",
         "unrelated.txt",
     ]
-    assert select_to_delete(names, keep=1) == [
-        "bookzma-2026-10-23-033000.dump",
-        "bookzma-2026-10-20-033000.dump",
-    ]
-    assert select_to_delete(names, keep=2) == ["bookzma-2026-10-20-033000.dump"]
+    assert select_to_delete(names, keep=3) == []
+    assert select_to_delete(names, keep=2) == ["pgdump_2026-10-20_0330.sql.gz"]
 
 
 def test_select_to_delete_edge_cases():
-    assert select_to_delete([], keep=1) == []
-    assert select_to_delete(["bookzma-2026-10-25-033000.dump"], keep=5) == []
+    assert select_to_delete([], keep=3) == []
+    assert select_to_delete(["pgdump_2026-10-25_0330.sql.gz"], keep=5) == []
     assert select_to_delete(
         [
-            "bookzma-2026-10-24-033000.dump",
-            "bookzma-2026-10-25-033000.dump",
+            "pgdump_2026-10-24_0330.sql.gz",
+            "pgdump_2026-10-25_0330.sql.gz",
         ],
         keep=0,
     ) == [
-        "bookzma-2026-10-25-033000.dump",
-        "bookzma-2026-10-24-033000.dump",
+        "pgdump_2026-10-25_0330.sql.gz",
+        "pgdump_2026-10-24_0330.sql.gz",
     ]
 
 
@@ -125,30 +123,23 @@ def test_relative_backup_dir_resolves_from_project_root(monkeypatch, tmp_path):
     assert backup_service._resolved_backup_dir("backups") == project_root / "backups"
 
 
-def fake_pg_proc(returncode=0, stderr=b""):
-    class FakeProc:
-        pass
-
-    proc = FakeProc()
-    proc.returncode = returncode
-
-    async def communicate():
-        return (b"", stderr)
-
-    proc.communicate = communicate
-    return proc
-
-
 def patch_subprocess(monkeypatch, returncode=0, stderr=b"", write_bytes=b""):
     calls = []
 
     async def fake_exec(*args, **kwargs):
         calls.append(args)
-        stdout = kwargs.get("stdout")
-        if write_bytes and hasattr(stdout, "write"):
-            stdout.write(write_bytes)
-            stdout.flush()
-        return fake_pg_proc(returncode, stderr)
+
+        class FakeProc:
+            pass
+
+        proc = FakeProc()
+        proc.returncode = returncode
+
+        async def communicate():
+            return (write_bytes, stderr)
+
+        proc.communicate = communicate
+        return proc
 
     monkeypatch.setattr(backup_service.asyncio, "create_subprocess_exec", fake_exec)
     return calls
@@ -157,22 +148,31 @@ def patch_subprocess(monkeypatch, returncode=0, stderr=b"", write_bytes=b""):
 def test_run_backup_success_rotates_old_dumps(monkeypatch, tmp_path):
     settings = make_settings(tmp_path)
     backup_dir = str(settings.backup_dir)
-    old1 = f"{backup_dir}/bookzma-2026-10-23-033000.dump"
-    old2 = f"{backup_dir}/bookzma-2026-10-24-033000.dump"
+    old1 = f"{backup_dir}/pgdump_2026-10-23_0330.sql.gz"
+    old2 = f"{backup_dir}/pgdump_2026-10-24_0330.sql.gz"
     Path(backup_dir).mkdir(parents=True)
     for path in (old1, old2):
         with open(path, "wb") as fh:
             fh.write(b"old")
 
-    calls = patch_subprocess(monkeypatch, write_bytes=b"PGDMP-fake")
+    import os as _os
+
+    raw = b"PGDMP-fake-data-" + _os.urandom(1500)
+    calls = patch_subprocess(monkeypatch, write_bytes=raw)
     info = asyncio.run(backup_service.run_backup(settings))
 
     assert len(calls) == 1
     assert calls[0][0] == "pg_dump"
-    assert info.size_bytes == len(b"PGDMP-fake")
-    import os
-
-    assert os.listdir(backup_dir) == [info.name]
+    assert info.name.startswith("pgdump_")
+    assert info.name.endswith(".sql.gz")
+    files = sorted(
+        f for f in _os.listdir(backup_dir)
+        if f != "pgbackup.lock"
+    )
+    assert len(files) == 3
+    assert all(f.startswith("pgdump_") and f.endswith(".sql.gz") for f in files)
+    with gzip.open(Path(backup_dir) / files[-1], "rb") as fh:
+        assert fh.read() == raw
 
 
 def test_run_backup_missing_pg_dump_is_reported_and_partial_file_removed(monkeypatch, tmp_path):
@@ -204,9 +204,7 @@ def test_run_backup_failure_removes_partial_file(monkeypatch, tmp_path):
     else:
         raise AssertionError("expected BackupError")
     assert len(calls) == 1
-    import os
-
-    assert os.listdir(settings.backup_dir) == []
+    assert list(Path(settings.backup_dir).iterdir()) == []
 
 
 def test_run_backup_empty_output_is_failure(monkeypatch, tmp_path):
@@ -239,9 +237,10 @@ def test_run_restore_success(monkeypatch, tmp_path):
     settings = make_settings(tmp_path)
     backup_dir = Path(str(settings.backup_dir))
     backup_dir.mkdir(parents=True)
-    name = "bookzma-2026-10-25-033000.dump"
+    name = "pgdump_2026-10-25_0330.sql.gz"
+    raw = gzip.compress(b"PGDMP-fake")
     with open(backup_dir / name, "wb") as fh:
-        fh.write(b"PGDMP-fake")
+        fh.write(raw)
     calls = patch_subprocess(monkeypatch)
     asyncio.run(backup_service.run_restore(settings, name))
     assert len(calls) == 1
@@ -254,8 +253,8 @@ def test_run_restore_missing_pg_restore_is_reported(monkeypatch, tmp_path):
     settings = make_settings(tmp_path)
     backup_dir = Path(settings.backup_dir)
     backup_dir.mkdir(parents=True)
-    name = "bookzma-2026-10-25-033000.dump"
-    (backup_dir / name).write_bytes(b"PGDMP-fake")
+    name = "pgdump_2026-10-25_0330.sql.gz"
+    (backup_dir / name).write_bytes(gzip.compress(b"PGDMP-fake"))
 
     async def missing_executable(*args, **kwargs):
         raise FileNotFoundError("pg_restore")
@@ -273,8 +272,8 @@ def test_run_restore_logs_postgres_error(monkeypatch, tmp_path, caplog):
     settings = make_settings(tmp_path)
     backup_dir = Path(settings.backup_dir)
     backup_dir.mkdir(parents=True)
-    name = "bookzma-2026-10-25-033000.dump"
-    (backup_dir / name).write_bytes(b"PGDMP-fake")
+    name = "pgdump_2026-10-25_0330.sql.gz"
+    (backup_dir / name).write_bytes(gzip.compress(b"PGDMP-fake"))
     patch_subprocess(monkeypatch, returncode=1, stderr=b"permission denied for database")
 
     try:
@@ -291,8 +290,8 @@ def test_run_restore_ignores_only_unsupported_transaction_timeout(monkeypatch, t
     settings = make_settings(tmp_path)
     backup_dir = Path(settings.backup_dir)
     backup_dir.mkdir(parents=True)
-    name = "bookzma-2026-10-25-033000.dump"
-    (backup_dir / name).write_bytes(b"PGDMP-fake")
+    name = "pgdump_2026-10-25_0330.sql.gz"
+    (backup_dir / name).write_bytes(gzip.compress(b"PGDMP-fake"))
     stderr = (
         b"pg_restore: error: could not execute query: ERROR:  unrecognized configuration "
         b'parameter "transaction_timeout"\n'
@@ -307,7 +306,7 @@ def test_run_restore_ignores_only_unsupported_transaction_timeout(monkeypatch, t
 def test_run_restore_rejects_bad_or_missing_files(monkeypatch, tmp_path):
     settings = make_settings(tmp_path)
     calls = patch_subprocess(monkeypatch)
-    for bad in ["../outside.dump", "bookzma-2026-10-25-033000.dump", "x"]:
+    for bad in ["../outside.dump", "pgdump_2026-10-25_0330.sql.gz", "x"]:
         try:
             asyncio.run(backup_service.run_restore(settings, bad))
         except BackupError:
